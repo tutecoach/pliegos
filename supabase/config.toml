@@ -1,1 +1,4 @@
 project_id = "ebztsgmexgtwdhzfccio"
+
+[functions.analyze-tender]
+verify_jwt = false
