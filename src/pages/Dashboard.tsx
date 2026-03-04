@@ -13,6 +13,7 @@ import {
   LogOut,
   Menu,
   X,
+  Sparkles,
 } from "lucide-react";
 
 const navItems = [
@@ -162,7 +163,12 @@ const Dashboard = () => {
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                 Crea un proyecto, sube un pliego de licitación y deja que nuestra IA lo analice por ti.
               </p>
-              <Button>Crear Proyecto</Button>
+              <Link to="/dashboard/new-analysis">
+                <Button>
+                  <Sparkles size={16} className="mr-2" />
+                  Nuevo Análisis con IA
+                </Button>
+              </Link>
             </div>
           )}
         </div>
