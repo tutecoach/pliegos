@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 const CTASection = () => {
   return (
@@ -19,12 +20,14 @@ const CTASection = () => {
             con inteligencia artificial. Sin instalaciones, sin compromiso.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="text-base px-8 gap-2">
-              Acceder al Sistema
-              <ArrowRight size={18} />
+            <Button size="lg" className="text-base px-8 gap-2" asChild>
+              <Link to="/login">
+                Acceder al Sistema
+                <ArrowRight size={18} />
+              </Link>
             </Button>
-            <Button size="lg" variant="outline" className="text-base px-8">
-              Solicitar Demo Gratuita
+            <Button size="lg" variant="outline" className="text-base px-8" asChild>
+              <Link to="/register">Solicitar Demo Gratuita</Link>
             </Button>
           </div>
         </motion.div>
