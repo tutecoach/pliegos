@@ -13,21 +13,24 @@ const CTASection = () => {
           viewport={{ once: true }}
         >
           <h2 className="text-3xl sm:text-4xl font-bold mb-6">
-            Empieza a ganar más licitaciones hoy
+            Deja de leer pliegos. Empieza a ganar licitaciones.
           </h2>
-          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Únete a las empresas de ingeniería civil que ya analizan sus pliegos
-            con inteligencia artificial. Sin instalaciones, sin compromiso.
+          <p className="text-lg text-muted-foreground mb-4 max-w-2xl mx-auto">
+            Únete a las empresas que ya analizan sus pliegos con IA estratégica sectorial.
+            Análisis jurídico-técnico, scoring predictivo y memoria técnica en minutos.
+          </p>
+          <p className="text-sm text-muted-foreground/70 mb-8">
+            Argentina · España · LATAM · Unión Europea
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" className="text-base px-8 gap-2" asChild>
-              <Link to="/login">
-                Acceder al Sistema
+              <Link to="/register">
+                Comenzar Ahora
                 <ArrowRight size={18} />
               </Link>
             </Button>
             <Button size="lg" variant="outline" className="text-base px-8" asChild>
-              <Link to="/register">Solicitar Demo Gratuita</Link>
+              <Link to="/login">Acceder al Sistema</Link>
             </Button>
           </div>
         </motion.div>

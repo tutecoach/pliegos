@@ -9,9 +9,9 @@ const Navbar = () => {
 
   const links = [
     { label: "Funcionalidades", href: "#features" },
+    { label: "Sectores", href: "#sectors" },
     { label: "Beneficios", href: "#benefits" },
     { label: "Planes", href: "#pricing" },
-    { label: "Contacto", href: "#contact" },
   ];
 
   return (
@@ -20,7 +20,6 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-16">
           <Logo size="sm" />
 
-          {/* Desktop */}
           <div className="hidden md:flex items-center gap-8">
             {links.map((l) => (
               <a
@@ -38,18 +37,16 @@ const Navbar = () => {
               <Link to="/login">Iniciar Sesión</Link>
             </Button>
             <Button size="sm" asChild>
-              <Link to="/register">Solicitar Demo</Link>
+              <Link to="/register">Comenzar Gratis</Link>
             </Button>
           </div>
 
-          {/* Mobile toggle */}
           <button className="md:hidden text-foreground" onClick={() => setOpen(!open)}>
             {open ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile menu */}
       {open && (
         <div className="md:hidden bg-background border-b border-border px-4 pb-4 space-y-3">
           {links.map((l) => (
@@ -67,7 +64,7 @@ const Navbar = () => {
               <Link to="/login" onClick={() => setOpen(false)}>Iniciar Sesión</Link>
             </Button>
             <Button size="sm" asChild>
-              <Link to="/register" onClick={() => setOpen(false)}>Solicitar Demo</Link>
+              <Link to="/register" onClick={() => setOpen(false)}>Comenzar Gratis</Link>
             </Button>
           </div>
         </div>

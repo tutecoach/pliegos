@@ -1,37 +1,51 @@
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 const plans = [
   {
-    name: "Básico",
-    price: "99",
+    name: "Starter",
+    price: "79",
     period: "/mes",
     description: "Para empresas que inician en licitaciones",
     features: [
-      "5 análisis de pliegos/mes",
-      "Informes estructurados",
-      "Exportación PDF",
+      "3 análisis de pliegos/mes",
+      "Extracción estructurada del PDF",
+      "Clasificación sectorial automática",
+      "Informe básico con requisitos y riesgos",
+      "Checklist documental",
       "1 usuario",
       "Soporte por email",
     ],
+    excluded: [
+      "Simulador de scoring avanzado",
+      "Generador de memoria técnica",
+      "Matching empresa vs pliego",
+    ],
     cta: "Comenzar",
+    ctaLink: "/register",
     highlighted: false,
   },
   {
-    name: "Profesional",
+    name: "Professional",
     price: "249",
     period: "/mes",
     description: "Para empresas con volumen de licitaciones",
     features: [
-      "25 análisis de pliegos/mes",
-      "Informes avanzados con estrategia",
-      "Detección de riesgos",
+      "Análisis ilimitados",
+      "4 capas de análisis profundo",
+      "Scoring predictivo (IAT + IRE + PEA)",
+      "Simulación económica interactiva",
+      "Generador de memoria técnica sectorial",
+      "Matching empresa vs pliego",
+      "Estrategia competitiva completa",
       "5 usuarios",
-      "Dashboard de métricas",
       "Soporte prioritario",
     ],
+    excluded: [],
     cta: "Comenzar",
+    ctaLink: "/register",
     highlighted: true,
   },
   {
@@ -40,14 +54,18 @@ const plans = [
     period: "",
     description: "Para grandes constructoras y UTEs",
     features: [
-      "Análisis ilimitados",
-      "API de integración",
-      "White-label disponible",
+      "Todo en Professional",
+      "Multi-empresa",
       "Usuarios ilimitados",
+      "Reportes avanzados y exportación",
+      "API de integración",
+      "Integraciones ERP",
       "Gestor de cuenta dedicado",
       "SLA garantizado",
     ],
-    cta: "Contactar",
+    excluded: [],
+    cta: "Contactar Ventas",
+    ctaLink: "/register",
     highlighted: false,
   },
 ];
@@ -67,7 +85,7 @@ const PricingSection = () => {
             Elige el plan que impulse tu empresa
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Todos los planes incluyen acceso completo al motor de IA. Sin compromisos, cancela cuando quieras.
+            Todos los planes incluyen motor de IA sectorial. Sin compromisos, cancela cuando quieras.
           </p>
         </motion.div>
 
@@ -99,10 +117,10 @@ const PricingSection = () => {
                 </span>
                 <span className="text-muted-foreground">{plan.period}</span>
               </div>
-              <ul className="space-y-3 mb-8">
+              <ul className="space-y-2.5 mb-8">
                 {plan.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm">
-                    <Check size={16} className="text-accent shrink-0" />
+                  <li key={f} className="flex items-start gap-2 text-sm">
+                    <Check size={16} className="text-accent shrink-0 mt-0.5" />
                     {f}
                   </li>
                 ))}
@@ -110,8 +128,9 @@ const PricingSection = () => {
               <Button
                 className="w-full"
                 variant={plan.highlighted ? "default" : "outline"}
+                asChild
               >
-                {plan.cta}
+                <Link to={plan.ctaLink}>{plan.cta}</Link>
               </Button>
             </motion.div>
           ))}
