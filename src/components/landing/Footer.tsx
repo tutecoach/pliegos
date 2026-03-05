@@ -8,13 +8,15 @@ const Footer = () => {
           <div>
             <Logo size="sm" className="[&_span]:text-background [&_.text-accent]:text-accent mb-4" />
             <p className="text-sm text-background/60">
-              Plataforma inteligente de análisis de licitaciones de obra civil.
+              Motor estratégico de análisis de licitaciones con IA sectorial. 
+              Simulación, scoring y generación de memoria técnica.
             </p>
           </div>
           <div>
-            <h4 className="font-semibold mb-3 text-sm">Producto</h4>
+            <h4 className="font-semibold mb-3 text-sm">Plataforma</h4>
             <ul className="space-y-2 text-sm text-background/60">
               <li><a href="#features" className="hover:text-background transition-colors">Funcionalidades</a></li>
+              <li><a href="#sectors" className="hover:text-background transition-colors">Sectores</a></li>
               <li><a href="#pricing" className="hover:text-background transition-colors">Planes</a></li>
               <li><a href="#" className="hover:text-background transition-colors">Documentación</a></li>
             </ul>
@@ -36,8 +38,9 @@ const Footer = () => {
             </ul>
           </div>
         </div>
-        <div className="border-t border-background/10 pt-8 text-center text-sm text-background/40">
-          © {new Date().getFullYear()} PliegoSmart. Todos los derechos reservados.
+        <div className="border-t border-background/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-background/40">
+          <span>© {new Date().getFullYear()} PLIEGO SMART. Todos los derechos reservados.</span>
+          <span>Argentina · España · LATAM · UE</span>
         </div>
       </div>
     </footer>
