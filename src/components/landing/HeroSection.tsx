@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Shield, Zap, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import Logo from "./Logo";
 
 const HeroSection = () => {
@@ -39,12 +40,14 @@ const HeroSection = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 mb-12">
-              <Button size="lg" className="text-base px-8 gap-2">
-                Acceder al Sistema
-                <ArrowRight size={18} />
+              <Button size="lg" className="text-base px-8 gap-2" asChild>
+                <Link to="/login">
+                  Acceder al Sistema
+                  <ArrowRight size={18} />
+                </Link>
               </Button>
-              <Button size="lg" variant="outline" className="text-base px-8">
-                Solicitar Demo
+              <Button size="lg" variant="outline" className="text-base px-8" asChild>
+                <Link to="/register">Solicitar Demo</Link>
               </Button>
             </div>
 

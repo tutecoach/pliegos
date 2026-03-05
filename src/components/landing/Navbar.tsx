@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import Logo from "./Logo";
 
 const Navbar = () => {
@@ -33,10 +34,12 @@ const Navbar = () => {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" size="sm">
-              Iniciar Sesión
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/login">Iniciar Sesión</Link>
             </Button>
-            <Button size="sm">Solicitar Demo</Button>
+            <Button size="sm" asChild>
+              <Link to="/register">Solicitar Demo</Link>
+            </Button>
           </div>
 
           {/* Mobile toggle */}
@@ -60,8 +63,12 @@ const Navbar = () => {
             </a>
           ))}
           <div className="flex flex-col gap-2 pt-2">
-            <Button variant="outline" size="sm">Iniciar Sesión</Button>
-            <Button size="sm">Solicitar Demo</Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/login" onClick={() => setOpen(false)}>Iniciar Sesión</Link>
+            </Button>
+            <Button size="sm" asChild>
+              <Link to="/register" onClick={() => setOpen(false)}>Solicitar Demo</Link>
+            </Button>
           </div>
         </div>
       )}
