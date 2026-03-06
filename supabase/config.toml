@@ -2,3 +2,6 @@ project_id = "ebztsgmexgtwdhzfccio"
 
 [functions.analyze-tender]
 verify_jwt = false
+
+[functions.generate-memory]
+verify_jwt = false

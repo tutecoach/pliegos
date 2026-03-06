@@ -12,6 +12,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import NewAnalysis from "./pages/NewAnalysis";
+import CompanyProfile from "./pages/CompanyProfile";
+import TechnicalMemory from "./pages/TechnicalMemory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,22 +31,10 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/new-analysis"
-              element={
-                <ProtectedRoute>
-                  <NewAnalysis />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard/new-analysis" element={<ProtectedRoute><NewAnalysis /></ProtectedRoute>} />
+            <Route path="/dashboard/company" element={<ProtectedRoute><CompanyProfile /></ProtectedRoute>} />
+            <Route path="/dashboard/technical-memory" element={<ProtectedRoute><TechnicalMemory /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

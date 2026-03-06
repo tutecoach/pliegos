@@ -109,38 +109,191 @@ export type Database = {
       companies: {
         Row: {
           address: string | null
+          capacidad_economica: string | null
+          capacidad_tecnica: string | null
           cif: string | null
+          clasificacion_empresarial: string | null
           created_at: string
           deleted_at: string | null
+          facturacion_anual: number | null
           id: string
           name: string
+          patrimonio_neto: number | null
           phone: string | null
+          sectores_actividad: string[] | null
           updated_at: string
           website: string | null
         }
         Insert: {
           address?: string | null
+          capacidad_economica?: string | null
+          capacidad_tecnica?: string | null
           cif?: string | null
+          clasificacion_empresarial?: string | null
           created_at?: string
           deleted_at?: string | null
+          facturacion_anual?: number | null
           id?: string
           name: string
+          patrimonio_neto?: number | null
           phone?: string | null
+          sectores_actividad?: string[] | null
           updated_at?: string
           website?: string | null
         }
         Update: {
           address?: string | null
+          capacidad_economica?: string | null
+          capacidad_tecnica?: string | null
           cif?: string | null
+          clasificacion_empresarial?: string | null
           created_at?: string
           deleted_at?: string | null
+          facturacion_anual?: number | null
           id?: string
           name?: string
+          patrimonio_neto?: number | null
           phone?: string | null
+          sectores_actividad?: string[] | null
           updated_at?: string
           website?: string | null
         }
         Relationships: []
+      }
+      company_certifications: {
+        Row: {
+          company_id: string
+          created_at: string
+          fecha_obtencion: string | null
+          fecha_vencimiento: string | null
+          id: string
+          nombre: string
+          organismo_emisor: string | null
+          puntuable: boolean | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          fecha_obtencion?: string | null
+          fecha_vencimiento?: string | null
+          id?: string
+          nombre: string
+          organismo_emisor?: string | null
+          puntuable?: boolean | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          fecha_obtencion?: string | null
+          fecha_vencimiento?: string | null
+          id?: string
+          nombre?: string
+          organismo_emisor?: string | null
+          puntuable?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_certifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_experience: {
+        Row: {
+          cliente: string | null
+          company_id: string
+          created_at: string
+          descripcion: string | null
+          fecha_fin: string | null
+          fecha_inicio: string | null
+          id: string
+          importe: number | null
+          resultado: string | null
+          sector: string | null
+          titulo: string
+        }
+        Insert: {
+          cliente?: string | null
+          company_id: string
+          created_at?: string
+          descripcion?: string | null
+          fecha_fin?: string | null
+          fecha_inicio?: string | null
+          id?: string
+          importe?: number | null
+          resultado?: string | null
+          sector?: string | null
+          titulo: string
+        }
+        Update: {
+          cliente?: string | null
+          company_id?: string
+          created_at?: string
+          descripcion?: string | null
+          fecha_fin?: string | null
+          fecha_inicio?: string | null
+          id?: string
+          importe?: number | null
+          resultado?: string | null
+          sector?: string | null
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_experience_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_team: {
+        Row: {
+          cargo: string | null
+          certificaciones: string[] | null
+          company_id: string
+          created_at: string
+          experiencia_anos: number | null
+          id: string
+          nombre: string
+          sector_especialidad: string | null
+          titulacion: string | null
+        }
+        Insert: {
+          cargo?: string | null
+          certificaciones?: string[] | null
+          company_id: string
+          created_at?: string
+          experiencia_anos?: number | null
+          id?: string
+          nombre: string
+          sector_especialidad?: string | null
+          titulacion?: string | null
+        }
+        Update: {
+          cargo?: string | null
+          certificaciones?: string[] | null
+          company_id?: string
+          created_at?: string
+          experiencia_anos?: number | null
+          id?: string
+          nombre?: string
+          sector_especialidad?: string | null
+          titulacion?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_team_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -221,6 +374,95 @@ export type Database = {
           },
         ]
       }
+      technical_memories: {
+        Row: {
+          company_id: string
+          content: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          sector: string | null
+          status: string
+          tender_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          sector?: string | null
+          status?: string
+          tender_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          content?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          sector?: string | null
+          status?: string
+          tender_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "technical_memories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "technical_memories_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_criteria: {
+        Row: {
+          created_at: string
+          descripcion: string
+          formula: string | null
+          id: string
+          ponderacion: number | null
+          tender_id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          descripcion: string
+          formula?: string | null
+          id?: string
+          ponderacion?: number | null
+          tender_id: string
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          descripcion?: string
+          formula?: string | null
+          id?: string
+          ponderacion?: number | null
+          tender_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_criteria_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tender_documents: {
         Row: {
           created_at: string
@@ -262,8 +504,224 @@ export type Database = {
           },
         ]
       }
+      tender_matching: {
+        Row: {
+          acciones_recomendadas: string | null
+          brechas: string[] | null
+          company_id: string
+          created_at: string
+          cumplimiento: string | null
+          fortalezas: string[] | null
+          iat_score: number | null
+          id: string
+          ire_score: number | null
+          observaciones: string | null
+          pea_score: number | null
+          riesgo: string | null
+          tender_id: string
+        }
+        Insert: {
+          acciones_recomendadas?: string | null
+          brechas?: string[] | null
+          company_id: string
+          created_at?: string
+          cumplimiento?: string | null
+          fortalezas?: string[] | null
+          iat_score?: number | null
+          id?: string
+          ire_score?: number | null
+          observaciones?: string | null
+          pea_score?: number | null
+          riesgo?: string | null
+          tender_id: string
+        }
+        Update: {
+          acciones_recomendadas?: string | null
+          brechas?: string[] | null
+          company_id?: string
+          created_at?: string
+          cumplimiento?: string | null
+          fortalezas?: string[] | null
+          iat_score?: number | null
+          id?: string
+          ire_score?: number | null
+          observaciones?: string | null
+          pea_score?: number | null
+          riesgo?: string | null
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_matching_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tender_matching_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_requirements_admin: {
+        Row: {
+          created_at: string
+          descripcion: string
+          id: string
+          normativa_aplicable: string | null
+          obligatorio: boolean | null
+          riesgo_exclusion: string | null
+          tender_id: string
+        }
+        Insert: {
+          created_at?: string
+          descripcion: string
+          id?: string
+          normativa_aplicable?: string | null
+          obligatorio?: boolean | null
+          riesgo_exclusion?: string | null
+          tender_id: string
+        }
+        Update: {
+          created_at?: string
+          descripcion?: string
+          id?: string
+          normativa_aplicable?: string | null
+          obligatorio?: boolean | null
+          riesgo_exclusion?: string | null
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_requirements_admin_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_requirements_tech: {
+        Row: {
+          created_at: string
+          descripcion: string
+          equipo_minimo: string | null
+          experiencia_minima: string | null
+          id: string
+          medios_minimos: string | null
+          tender_id: string
+        }
+        Insert: {
+          created_at?: string
+          descripcion: string
+          equipo_minimo?: string | null
+          experiencia_minima?: string | null
+          id?: string
+          medios_minimos?: string | null
+          tender_id: string
+        }
+        Update: {
+          created_at?: string
+          descripcion?: string
+          equipo_minimo?: string | null
+          experiencia_minima?: string | null
+          id?: string
+          medios_minimos?: string | null
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_requirements_tech_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_risks: {
+        Row: {
+          created_at: string
+          descripcion: string
+          id: string
+          mitigacion: string | null
+          nivel: string
+          tender_id: string
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          descripcion: string
+          id?: string
+          mitigacion?: string | null
+          nivel?: string
+          tender_id: string
+          tipo?: string
+        }
+        Update: {
+          created_at?: string
+          descripcion?: string
+          id?: string
+          mitigacion?: string | null
+          nivel?: string
+          tender_id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_risks_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tender_strategy: {
+        Row: {
+          created_at: string
+          estrategia_economica: string | null
+          estrategia_tecnica: string | null
+          id: string
+          mejoras_propuestas: string | null
+          narrativa_recomendada: string | null
+          tender_id: string
+        }
+        Insert: {
+          created_at?: string
+          estrategia_economica?: string | null
+          estrategia_tecnica?: string | null
+          id?: string
+          mejoras_propuestas?: string | null
+          narrativa_recomendada?: string | null
+          tender_id: string
+        }
+        Update: {
+          created_at?: string
+          estrategia_economica?: string | null
+          estrategia_tecnica?: string | null
+          id?: string
+          mejoras_propuestas?: string | null
+          narrativa_recomendada?: string | null
+          tender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tender_strategy_tender_id_fkey"
+            columns: ["tender_id"]
+            isOneToOne: false
+            referencedRelation: "tenders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenders: {
         Row: {
+          clasificacion_requerida: string | null
           company_id: string
           contract_amount: number | null
           contracting_entity: string | null
@@ -271,14 +729,19 @@ export type Database = {
           created_by: string | null
           deleted_at: string | null
           duration: string | null
+          garantia_definitiva: number | null
+          garantia_provisional: number | null
           id: string
           project_id: string
+          sector: string | null
           status: string
           submission_deadline: string | null
           title: string
           updated_at: string
+          valor_estimado: number | null
         }
         Insert: {
+          clasificacion_requerida?: string | null
           company_id: string
           contract_amount?: number | null
           contracting_entity?: string | null
@@ -286,14 +749,19 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           duration?: string | null
+          garantia_definitiva?: number | null
+          garantia_provisional?: number | null
           id?: string
           project_id: string
+          sector?: string | null
           status?: string
           submission_deadline?: string | null
           title: string
           updated_at?: string
+          valor_estimado?: number | null
         }
         Update: {
+          clasificacion_requerida?: string | null
           company_id?: string
           contract_amount?: number | null
           contracting_entity?: string | null
@@ -301,12 +769,16 @@ export type Database = {
           created_by?: string | null
           deleted_at?: string | null
           duration?: string | null
+          garantia_definitiva?: number | null
+          garantia_provisional?: number | null
           id?: string
           project_id?: string
+          sector?: string | null
           status?: string
           submission_deadline?: string | null
           title?: string
           updated_at?: string
+          valor_estimado?: number | null
         }
         Relationships: [
           {
