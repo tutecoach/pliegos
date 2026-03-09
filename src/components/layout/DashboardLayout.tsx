@@ -4,22 +4,25 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/landing/Logo";
 import {
-  LayoutDashboard, FolderOpen, FileText, BarChart3, Building2,
-  Settings, LogOut, Menu, X, Sparkles,
+  LayoutDashboard, FileText, Building2,
+  Settings, LogOut, Menu, X, Sparkles, Clock, BarChart3,
 } from "lucide-react";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-  { icon: Building2, label: "Mi Empresa", href: "/dashboard/company" },
   { icon: Sparkles, label: "Nuevo Análisis", href: "/dashboard/new-analysis" },
-  { icon: FileText, label: "Licitaciones", href: "/dashboard/tenders" },
-  { icon: BarChart3, label: "Informes", href: "/dashboard/reports" },
+  { icon: Clock, label: "Historial", href: "/dashboard/history" },
+  { icon: Building2, label: "Mi Empresa", href: "/dashboard/company" },
+  { icon: Settings, label: "Configuración", href: "/dashboard/settings" },
 ];
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+
+  const isActive = (href: string) => location.pathname === href || 
+    (href === "/dashboard/history" && (location.pathname === "/dashboard/tenders" || location.pathname === "/dashboard/reports" || location.pathname.startsWith("/dashboard/report/")));
 
   return (
     <div className="min-h-screen bg-muted/30 flex">
@@ -32,7 +35,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
           <nav className="flex-1 p-4 space-y-1">
             {navItems.map(item => (
               <Link key={item.href} to={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${location.pathname === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive(item.href) ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}>
                 <item.icon size={18} />{item.label}
               </Link>
             ))}

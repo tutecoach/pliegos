@@ -10,10 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PdfUploader from "@/components/tender/PdfUploader";
 import AnalysisReport from "@/components/tender/AnalysisReport";
+import EconomicSimulator from "@/components/tender/EconomicSimulator";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { ArrowLeft, Loader2, Sparkles, FileText, CheckCircle, BookOpen } from "lucide-react";
+import { Loader2, Sparkles, FileText, CheckCircle, BookOpen, Calculator } from "lucide-react";
 
 type Step = "info" | "upload" | "analyzing" | "results";
+
+const SECTORES = [
+  "Obras Civiles", "Energía", "Agua y Saneamiento", "Tecnología",
+  "Sanidad", "Servicios Generales", "Industrial", "Transporte",
+  "Telecomunicaciones", "Ambiental", "Arquitectura", "Facility Management",
+];
 
 const NewAnalysis = () => {
   const { user } = useAuth();
@@ -21,6 +28,7 @@ const NewAnalysis = () => {
   const [step, setStep] = useState<Step>("info");
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [title, setTitle] = useState("");
   const [contractingEntity, setContractingEntity] = useState("");
@@ -36,35 +44,47 @@ const NewAnalysis = () => {
 
   const [tenderId, setTenderId] = useState<string | null>(null);
   const [reportData, setReportData] = useState<any>(null);
-
-  const SECTORES = [
-    "Obras Civiles", "Energía", "Agua y Saneamiento", "Tecnología",
-    "Sanidad", "Servicios Generales", "Industrial", "Transporte",
-    "Telecomunicaciones", "Ambiental", "Arquitectura", "Facility Management",
-  ];
+  const [showSimulator, setShowSimulator] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     const load = async () => {
+      // Get or create profile + company
       const { data: profile } = await supabase.from("profiles").select("company_id").eq("user_id", user.id).single();
-      if (profile?.company_id) {
-        setCompanyId(profile.company_id);
-        const { data: projs } = await supabase.from("projects").select("id, name").eq("company_id", profile.company_id);
+      
+      let cId = profile?.company_id;
+      
+      // If no company, create one automatically
+      if (!cId) {
+        const { data: newCompany } = await supabase.from("companies").insert({ name: "Mi Empresa" }).select("id").single();
+        if (newCompany) {
+          cId = newCompany.id;
+          await supabase.from("profiles").update({ company_id: cId }).eq("user_id", user.id);
+        }
+      }
+
+      if (cId) {
+        setCompanyId(cId);
+        const { data: projs } = await supabase.from("projects").select("id, name").eq("company_id", cId);
         if (projs && projs.length > 0) {
           setProjects(projs);
           setProjectId(projs[0].id);
         } else {
-          const { data: newProj } = await supabase.from("projects").insert({ name: "Proyecto General", company_id: profile.company_id }).select("id, name").single();
+          const { data: newProj } = await supabase.from("projects").insert({ name: "Proyecto General", company_id: cId }).select("id, name").single();
           if (newProj) { setProjects([newProj]); setProjectId(newProj.id); }
         }
       }
+      setLoading(false);
     };
     load();
   }, [user]);
 
   const createTender = async () => {
     if (!title.trim()) { toast({ title: "El título es obligatorio", variant: "destructive" }); return; }
-    if (!companyId || !projectId) { toast({ title: "Error de configuración", variant: "destructive" }); return; }
+    if (!companyId || !projectId) {
+      toast({ title: "Error de configuración", description: "No se pudo vincular tu empresa. Ve a Perfil de Empresa para configurarla.", variant: "destructive" });
+      return;
+    }
 
     const { data: tender, error } = await supabase.from("tenders").insert({
       title: title.trim(), company_id: companyId, project_id: projectId,
@@ -115,6 +135,14 @@ const NewAnalysis = () => {
   ];
   const currentIdx = steps.findIndex(s => s.key === step);
 
+  if (loading) return (
+    <DashboardLayout>
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    </DashboardLayout>
+  );
+
   return (
     <DashboardLayout>
       <div className="max-w-3xl mx-auto p-6">
@@ -130,7 +158,7 @@ const NewAnalysis = () => {
           ))}
         </div>
 
-        {/* Step 1 */}
+        {/* Step 1: Info */}
         {step === "info" && (
           <Card>
             <CardHeader>
@@ -176,7 +204,7 @@ const NewAnalysis = () => {
           </Card>
         )}
 
-        {/* Step 2 */}
+        {/* Step 2: Upload */}
         {step === "upload" && tenderId && (
           <Card>
             <CardHeader>
@@ -193,7 +221,7 @@ const NewAnalysis = () => {
           </Card>
         )}
 
-        {/* Step 3 */}
+        {/* Step 3: Analyzing */}
         {step === "analyzing" && (
           <Card>
             <CardContent className="p-12 text-center">
@@ -213,20 +241,31 @@ const NewAnalysis = () => {
           </Card>
         )}
 
-        {/* Step 4 */}
+        {/* Step 4: Results */}
         {step === "results" && reportData && (
           <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <h2 className="text-xl font-bold">Informe Estratégico</h2>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={() => setShowSimulator(!showSimulator)}>
+                  <Calculator size={16} className="mr-2" />{showSimulator ? "Ocultar Simulador" : "Simulador Económico"}
+                </Button>
                 {tenderId && (
                   <Link to={`/dashboard/technical-memory?tenderId=${tenderId}`}>
-                    <Button variant="secondary"><BookOpen size={16} className="mr-2" />Generar Memoria Técnica</Button>
+                    <Button variant="secondary" size="sm"><BookOpen size={16} className="mr-2" />Generar Memoria Técnica</Button>
                   </Link>
                 )}
-                <Button variant="outline" onClick={() => navigate("/dashboard")}>Volver al Dashboard</Button>
+                <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>Volver al Dashboard</Button>
               </div>
             </div>
+
+            {showSimulator && (
+              <EconomicSimulator
+                presupuestoBase={contractAmount ? parseFloat(contractAmount) : undefined}
+                criteriosEconomicos={reportData.criterios_adjudicacion?.filter((c: any) => c.tipo === "automatico" && c.criterio?.toLowerCase().includes("econ")) || []}
+              />
+            )}
+
             <AnalysisReport data={reportData} />
           </div>
         )}
