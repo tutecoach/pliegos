@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Loader2, Sparkles, Download, Save, ArrowLeft } from "lucide-react";
+import { Loader2, Sparkles, Download, Save, ArrowLeft, FileText } from "lucide-react";
 
 const TechnicalMemory = () => {
   const { user } = useAuth();
@@ -30,13 +30,9 @@ const TechnicalMemory = () => {
       const { data: tender } = await supabase.from("tenders").select("title").eq("id", tenderId).single();
       if (tender) setTenderTitle(tender.title);
 
-      // Check for existing memory
       const { data: existing } = await supabase.from("technical_memories")
         .select("id, content").eq("tender_id", tenderId).order("created_at", { ascending: false }).limit(1).single();
-      if (existing) {
-        setMemoryId(existing.id);
-        setContent(existing.content || "");
-      }
+      if (existing) { setMemoryId(existing.id); setContent(existing.content || ""); }
     };
     load();
   }, [user, tenderId]);
@@ -45,9 +41,7 @@ const TechnicalMemory = () => {
     if (!tenderId || !companyId) return;
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-memory", {
-        body: { tenderId, companyId },
-      });
+      const { data, error } = await supabase.functions.invoke("generate-memory", { body: { tenderId, companyId } });
       if (error) throw error;
       setContent(data.content);
       setMemoryId(data.memory_id);
@@ -69,7 +63,7 @@ const TechnicalMemory = () => {
     else toast({ title: "Memoria guardada" });
   };
 
-  const exportAsText = () => {
+  const exportAsMarkdown = () => {
     const blob = new Blob([content], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -77,6 +71,56 @@ const TechnicalMemory = () => {
     a.download = `memoria-tecnica-${tenderTitle.slice(0, 30)}.md`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const exportAsWord = () => {
+    // Generate a simple HTML-based .doc file (compatible with Word)
+    const html = `
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Memoria Técnica - ${tenderTitle}</title>
+<style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.6;margin:2cm;}
+h1{font-size:18pt;color:#1a365d;border-bottom:2px solid #1a365d;padding-bottom:6pt;}
+h2{font-size:14pt;color:#2d4a7a;margin-top:18pt;}
+h3{font-size:12pt;color:#3d5a8a;}
+p{margin:6pt 0;}ul{margin:6pt 0 6pt 20pt;}</style></head>
+<body>${markdownToHtml(content)}</body></html>`;
+    const blob = new Blob([html], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `memoria-tecnica-${tenderTitle.slice(0, 30)}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportAsPdf = () => {
+    // Use browser print to generate PDF
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) { toast({ title: "Permite ventanas emergentes para exportar PDF", variant: "destructive" }); return; }
+    printWindow.document.write(`
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Memoria Técnica - ${tenderTitle}</title>
+<style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.6;margin:2cm;color:#222;}
+h1{font-size:18pt;color:#1a365d;border-bottom:2px solid #1a365d;padding-bottom:6pt;}
+h2{font-size:14pt;color:#2d4a7a;margin-top:18pt;}
+h3{font-size:12pt;color:#3d5a8a;}
+@media print{body{margin:0;}}</style></head>
+<body>${markdownToHtml(content)}</body></html>`);
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); }, 500);
+  };
+
+  const markdownToHtml = (md: string) => {
+    return md
+      .replace(/^### (.*$)/gim, "<h3>$1</h3>")
+      .replace(/^## (.*$)/gim, "<h2>$1</h2>")
+      .replace(/^# (.*$)/gim, "<h1>$1</h1>")
+      .replace(/\*\*(.*?)\*\*/gim, "<strong>$1</strong>")
+      .replace(/\*(.*?)\*/gim, "<em>$1</em>")
+      .replace(/^- (.*$)/gim, "<li>$1</li>")
+      .replace(/(<li>.*<\/li>)/gims, "<ul>$1</ul>")
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/\n/g, "<br>")
+      .replace(/^(.+)$/gm, (match) => match.startsWith("<") ? match : `<p>${match}</p>`);
   };
 
   return (
@@ -99,9 +143,7 @@ const TechnicalMemory = () => {
                 La IA generará una memoria técnica completa, adaptada al sector del pliego,
                 los criterios de adjudicación y el perfil de tu empresa.
               </p>
-              <Button onClick={generate} size="lg">
-                <Sparkles size={16} className="mr-2" />Generar Memoria Técnica
-              </Button>
+              <Button onClick={generate} size="lg"><Sparkles size={16} className="mr-2" />Generar Memoria Técnica</Button>
             </CardContent>
           </Card>
         )}
@@ -118,24 +160,19 @@ const TechnicalMemory = () => {
 
         {content && !generating && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 justify-end">
-              <Button variant="outline" onClick={exportAsText}><Download size={14} className="mr-1" />Exportar MD</Button>
-              <Button onClick={save} disabled={saving}>
-                {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
-                Guardar
+            <div className="flex items-center gap-2 justify-end flex-wrap">
+              <Button variant="outline" size="sm" onClick={exportAsMarkdown}><Download size={14} className="mr-1" />Markdown</Button>
+              <Button variant="outline" size="sm" onClick={exportAsWord}><FileText size={14} className="mr-1" />Word (.doc)</Button>
+              <Button variant="outline" size="sm" onClick={exportAsPdf}><Download size={14} className="mr-1" />PDF</Button>
+              <Button size="sm" onClick={save} disabled={saving}>
+                {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}Guardar
               </Button>
-              <Button variant="secondary" onClick={generate}>
-                <Sparkles size={14} className="mr-1" />Regenerar
-              </Button>
+              <Button variant="secondary" size="sm" onClick={generate}><Sparkles size={14} className="mr-1" />Regenerar</Button>
             </div>
             <Card>
               <CardHeader><CardTitle className="text-base">Editor de Memoria Técnica</CardTitle></CardHeader>
               <CardContent>
-                <Textarea
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  className="min-h-[600px] font-mono text-sm"
-                />
+                <Textarea value={content} onChange={e => setContent(e.target.value)} className="min-h-[600px] font-mono text-sm" />
               </CardContent>
             </Card>
           </div>

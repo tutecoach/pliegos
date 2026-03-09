@@ -11,9 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import {
-  Building2, Save, Plus, Trash2, Award, Users, Briefcase, Loader2,
-} from "lucide-react";
+import { Building2, Save, Plus, Trash2, Award, Users, Briefcase, Loader2 } from "lucide-react";
 
 const SECTORES = [
   "Obras Civiles", "Energía", "Agua y Saneamiento", "Tecnología",
@@ -27,7 +25,6 @@ const CompanyProfile = () => {
   const [saving, setSaving] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
 
-  // Company data
   const [company, setCompany] = useState({
     name: "", cif: "", address: "", phone: "", website: "",
     facturacion_anual: "", patrimonio_neto: "", clasificacion_empresarial: "",
@@ -35,7 +32,6 @@ const CompanyProfile = () => {
     sectores_actividad: [] as string[],
   });
 
-  // Sub-entities
   const [certifications, setCertifications] = useState<any[]>([]);
   const [experience, setExperience] = useState<any[]>([]);
   const [team, setTeam] = useState<any[]>([]);
@@ -43,16 +39,27 @@ const CompanyProfile = () => {
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      const { data: profile } = await supabase
-        .from("profiles").select("company_id").eq("user_id", user.id).single();
-      if (!profile?.company_id) { setLoading(false); return; }
-      setCompanyId(profile.company_id);
+      const { data: profile } = await supabase.from("profiles").select("company_id").eq("user_id", user.id).single();
+      
+      let cId = profile?.company_id;
+      
+      // Auto-create company if none exists
+      if (!cId) {
+        const { data: newCompany } = await supabase.from("companies").insert({ name: "Mi Empresa" }).select("id").single();
+        if (newCompany) {
+          cId = newCompany.id;
+          await supabase.from("profiles").update({ company_id: cId }).eq("user_id", user.id);
+        }
+      }
+
+      if (!cId) { setLoading(false); return; }
+      setCompanyId(cId);
 
       const [compRes, certRes, expRes, teamRes] = await Promise.all([
-        supabase.from("companies").select("*").eq("id", profile.company_id).single(),
-        supabase.from("company_certifications").select("*").eq("company_id", profile.company_id),
-        supabase.from("company_experience").select("*").eq("company_id", profile.company_id).order("fecha_inicio", { ascending: false }),
-        supabase.from("company_team").select("*").eq("company_id", profile.company_id),
+        supabase.from("companies").select("*").eq("id", cId).single(),
+        supabase.from("company_certifications").select("*").eq("company_id", cId),
+        supabase.from("company_experience").select("*").eq("company_id", cId).order("fecha_inicio", { ascending: false }),
+        supabase.from("company_team").select("*").eq("company_id", cId),
       ]);
 
       if (compRes.data) {
@@ -91,7 +98,7 @@ const CompanyProfile = () => {
     }).eq("id", companyId);
     setSaving(false);
     if (error) toast({ title: "Error guardando", description: error.message, variant: "destructive" });
-    else toast({ title: "Empresa actualizada" });
+    else toast({ title: "✅ Empresa actualizada correctamente" });
   };
 
   const toggleSector = (s: string) => {
@@ -103,7 +110,6 @@ const CompanyProfile = () => {
     }));
   };
 
-  // CRUD helpers for sub-entities
   const addCertification = async () => {
     if (!companyId) return;
     const { data, error } = await supabase.from("company_certifications")
@@ -112,7 +118,7 @@ const CompanyProfile = () => {
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
   };
 
-  const updateCertification = async (id: string, field: string, value: any) => {
+  const updateCertification = (id: string, field: string, value: any) => {
     setCertifications(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
   };
 
@@ -181,9 +187,7 @@ const CompanyProfile = () => {
 
   if (loading) return (
     <DashboardLayout>
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-primary" size={32} />
-      </div>
+      <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-primary" size={32} /></div>
     </DashboardLayout>
   );
 
@@ -192,9 +196,7 @@ const CompanyProfile = () => {
       <div className="p-6 max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Building2 size={24} className="text-primary" /> Perfil de Empresa
-            </h1>
+            <h1 className="text-2xl font-bold flex items-center gap-2"><Building2 size={24} className="text-primary" /> Perfil de Empresa</h1>
             <p className="text-muted-foreground text-sm">Datos para el matching automático con pliegos</p>
           </div>
         </div>
@@ -207,13 +209,9 @@ const CompanyProfile = () => {
             <TabsTrigger value="team">Equipo</TabsTrigger>
           </TabsList>
 
-          {/* General */}
           <TabsContent value="general">
             <Card>
-              <CardHeader>
-                <CardTitle>Datos Generales</CardTitle>
-                <CardDescription>Información fiscal y financiera de la empresa</CardDescription>
-              </CardHeader>
+              <CardHeader><CardTitle>Datos Generales</CardTitle><CardDescription>Información fiscal y financiera</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div><Label>Razón Social *</Label><Input value={company.name} onChange={e => setCompany(p => ({ ...p, name: e.target.value }))} /></div>
@@ -237,8 +235,8 @@ const CompanyProfile = () => {
                   <h3 className="font-semibold mb-3">Clasificación y Capacidad</h3>
                   <div><Label>Clasificación Empresarial</Label><Input placeholder="Ej: Grupo C, Subgrupo 6, Categoría D" value={company.clasificacion_empresarial} onChange={e => setCompany(p => ({ ...p, clasificacion_empresarial: e.target.value }))} /></div>
                   <div className="grid sm:grid-cols-2 gap-4 mt-3">
-                    <div><Label>Capacidad Técnica</Label><Textarea value={company.capacidad_tecnica} onChange={e => setCompany(p => ({ ...p, capacidad_tecnica: e.target.value }))} placeholder="Descripción de medios técnicos disponibles" /></div>
-                    <div><Label>Capacidad Económica</Label><Textarea value={company.capacidad_economica} onChange={e => setCompany(p => ({ ...p, capacidad_economica: e.target.value }))} placeholder="Descripción de capacidad financiera" /></div>
+                    <div><Label>Capacidad Técnica</Label><Textarea value={company.capacidad_tecnica} onChange={e => setCompany(p => ({ ...p, capacidad_tecnica: e.target.value }))} placeholder="Medios técnicos disponibles" /></div>
+                    <div><Label>Capacidad Económica</Label><Textarea value={company.capacidad_economica} onChange={e => setCompany(p => ({ ...p, capacidad_economica: e.target.value }))} placeholder="Capacidad financiera" /></div>
                   </div>
                 </div>
 
@@ -246,9 +244,7 @@ const CompanyProfile = () => {
                   <h3 className="font-semibold mb-3">Sectores de Actividad</h3>
                   <div className="flex flex-wrap gap-2">
                     {SECTORES.map(s => (
-                      <Badge key={s} variant={company.sectores_actividad.includes(s) ? "default" : "outline"} className="cursor-pointer" onClick={() => toggleSector(s)}>
-                        {s}
-                      </Badge>
+                      <Badge key={s} variant={company.sectores_actividad.includes(s) ? "default" : "outline"} className="cursor-pointer" onClick={() => toggleSector(s)}>{s}</Badge>
                     ))}
                   </div>
                 </div>
@@ -261,14 +257,10 @@ const CompanyProfile = () => {
             </Card>
           </TabsContent>
 
-          {/* Certifications */}
           <TabsContent value="certifications">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Award size={18} /> Certificaciones</CardTitle>
-                  <CardDescription>ISO, OHSAS, habilitaciones técnicas, etc.</CardDescription>
-                </div>
+                <div><CardTitle className="flex items-center gap-2"><Award size={18} /> Certificaciones</CardTitle><CardDescription>ISO, OHSAS, habilitaciones técnicas</CardDescription></div>
                 <Button size="sm" onClick={addCertification}><Plus size={14} className="mr-1" />Añadir</Button>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -293,14 +285,10 @@ const CompanyProfile = () => {
             </Card>
           </TabsContent>
 
-          {/* Experience */}
           <TabsContent value="experience">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Briefcase size={18} /> Obras / Proyectos Ejecutados</CardTitle>
-                  <CardDescription>Experiencia previa para matching con requisitos de solvencia</CardDescription>
-                </div>
+                <div><CardTitle className="flex items-center gap-2"><Briefcase size={18} /> Obras / Proyectos Ejecutados</CardTitle><CardDescription>Experiencia previa para matching</CardDescription></div>
                 <Button size="sm" onClick={addExperience}><Plus size={14} className="mr-1" />Añadir</Button>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -333,38 +321,34 @@ const CompanyProfile = () => {
             </Card>
           </TabsContent>
 
-          {/* Team */}
           <TabsContent value="team">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Users size={18} /> Equipo Técnico</CardTitle>
-                  <CardDescription>Personal clave para licitaciones</CardDescription>
-                </div>
+                <div><CardTitle className="flex items-center gap-2"><Users size={18} /> Equipo Técnico</CardTitle><CardDescription>Personal clave para licitaciones</CardDescription></div>
                 <Button size="sm" onClick={addTeamMember}><Plus size={14} className="mr-1" />Añadir</Button>
               </CardHeader>
               <CardContent className="space-y-4">
-                {team.length === 0 && <p className="text-muted-foreground text-sm text-center py-8">Sin miembros registrados.</p>}
-                {team.map(m => (
-                  <div key={m.id} className="border border-border rounded-lg p-4 space-y-3">
-                    <div className="grid sm:grid-cols-3 gap-3">
-                      <div><Label>Nombre</Label><Input value={m.nombre} onChange={e => updateTeamMember(m.id, "nombre", e.target.value)} /></div>
-                      <div><Label>Cargo</Label><Input value={m.cargo || ""} onChange={e => updateTeamMember(m.id, "cargo", e.target.value)} /></div>
-                      <div><Label>Titulación</Label><Input value={m.titulacion || ""} onChange={e => updateTeamMember(m.id, "titulacion", e.target.value)} /></div>
-                    </div>
+                {team.length === 0 && <p className="text-muted-foreground text-sm text-center py-8">Sin equipo registrado.</p>}
+                {team.map(member => (
+                  <div key={member.id} className="border border-border rounded-lg p-4 space-y-3">
                     <div className="grid sm:grid-cols-2 gap-3">
-                      <div><Label>Años de Experiencia</Label><Input type="number" value={m.experiencia_anos || 0} onChange={e => updateTeamMember(m.id, "experiencia_anos", e.target.value)} /></div>
+                      <div><Label>Nombre</Label><Input value={member.nombre} onChange={e => updateTeamMember(member.id, "nombre", e.target.value)} /></div>
+                      <div><Label>Cargo</Label><Input value={member.cargo || ""} onChange={e => updateTeamMember(member.id, "cargo", e.target.value)} /></div>
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div><Label>Titulación</Label><Input value={member.titulacion || ""} onChange={e => updateTeamMember(member.id, "titulacion", e.target.value)} /></div>
+                      <div><Label>Años Experiencia</Label><Input type="number" value={member.experiencia_anos || 0} onChange={e => updateTeamMember(member.id, "experiencia_anos", e.target.value)} /></div>
                       <div>
-                        <Label>Sector Especialidad</Label>
-                        <Select value={m.sector_especialidad || ""} onValueChange={v => updateTeamMember(m.id, "sector_especialidad", v)}>
+                        <Label>Especialidad</Label>
+                        <Select value={member.sector_especialidad || ""} onValueChange={v => updateTeamMember(member.id, "sector_especialidad", v)}>
                           <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
                           <SelectContent>{SECTORES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="destructive" onClick={() => deleteTeamMember(m.id)}><Trash2 size={14} /></Button>
-                      <Button size="sm" onClick={() => saveTeamMember(m)}><Save size={14} className="mr-1" />Guardar</Button>
+                      <Button size="sm" variant="destructive" onClick={() => deleteTeamMember(member.id)}><Trash2 size={14} /></Button>
+                      <Button size="sm" onClick={() => saveTeamMember(member)}><Save size={14} className="mr-1" />Guardar</Button>
                     </div>
                   </div>
                 ))}
