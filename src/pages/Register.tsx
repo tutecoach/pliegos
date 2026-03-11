@@ -41,22 +41,41 @@ const Register = () => {
     }
 
     if (authData.user) {
-      // 2. Create company (user is now authenticated, RLS allows insert)
-      const { data: newCompany, error: companyError } = await supabase
+      if (!authData.session) {
+        toast({
+          title: "Revisa tu correo",
+          description: "Confirma tu email para activar la cuenta y luego inicia sesión.",
+        });
+        navigate("/login");
+        setLoading(false);
+        return;
+      }
+
+      const newCompanyId = crypto.randomUUID();
+      const { error: companyError } = await supabase
         .from("companies")
-        .insert({ name: companyName })
-        .select("id")
-        .single();
+        .insert({ id: newCompanyId, name: companyName });
 
       if (companyError) {
         console.error("Company creation error:", companyError);
         toast({ title: "Cuenta creada", description: "Configura tu empresa desde el perfil." });
-      } else if (newCompany) {
-        // 3. Link company to profile
-        await supabase
+      } else {
+        const { data: updatedProfile, error: profileUpdateError } = await supabase
           .from("profiles")
-          .update({ company_id: newCompany.id, full_name: fullName })
-          .eq("user_id", authData.user.id);
+          .update({ company_id: newCompanyId, full_name: fullName })
+          .eq("user_id", authData.user.id)
+          .select("id")
+          .maybeSingle();
+
+        if (profileUpdateError) {
+          console.error("Profile update error:", profileUpdateError);
+        } else if (!updatedProfile) {
+          await supabase.from("profiles").insert({
+            user_id: authData.user.id,
+            full_name: fullName,
+            company_id: newCompanyId,
+          });
+        }
       }
 
       toast({ title: "¡Registro exitoso!", description: "Ya puedes acceder a tu cuenta." });
