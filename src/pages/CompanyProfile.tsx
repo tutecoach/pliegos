@@ -39,48 +39,55 @@ const CompanyProfile = () => {
 
   useEffect(() => {
     if (!user) return;
+
     const load = async () => {
-      const { data: profile } = await supabase.from("profiles").select("company_id").eq("user_id", user.id).single();
-      
-      let cId = profile?.company_id;
-      
-      // Auto-create company if none exists
-      if (!cId) {
-        const { data: newCompany } = await supabase.from("companies").insert({ name: "Mi Empresa" }).select("id").single();
-        if (newCompany) {
-          cId = newCompany.id;
-          await supabase.from("profiles").update({ company_id: cId }).eq("user_id", user.id);
+      setLoading(true);
+      try {
+        const { companyId: ensuredCompanyId } = await ensureCompanySetupForUser(user.id);
+        setCompanyId(ensuredCompanyId);
+
+        const [compRes, certRes, expRes, teamRes] = await Promise.all([
+          supabase.from("companies").select("*").eq("id", ensuredCompanyId).single(),
+          supabase.from("company_certifications").select("*").eq("company_id", ensuredCompanyId),
+          supabase
+            .from("company_experience")
+            .select("*")
+            .eq("company_id", ensuredCompanyId)
+            .order("fecha_inicio", { ascending: false }),
+          supabase.from("company_team").select("*").eq("company_id", ensuredCompanyId),
+        ]);
+
+        if (compRes.data) {
+          const c = compRes.data as any;
+          setCompany({
+            name: c.name || "",
+            cif: c.cif || "",
+            address: c.address || "",
+            phone: c.phone || "",
+            website: c.website || "",
+            facturacion_anual: c.facturacion_anual?.toString() || "",
+            patrimonio_neto: c.patrimonio_neto?.toString() || "",
+            clasificacion_empresarial: c.clasificacion_empresarial || "",
+            capacidad_tecnica: c.capacidad_tecnica || "",
+            capacidad_economica: c.capacidad_economica || "",
+            sectores_actividad: c.sectores_actividad || [],
+          });
         }
-      }
 
-      if (!cId) { setLoading(false); return; }
-      setCompanyId(cId);
-
-      const [compRes, certRes, expRes, teamRes] = await Promise.all([
-        supabase.from("companies").select("*").eq("id", cId).single(),
-        supabase.from("company_certifications").select("*").eq("company_id", cId),
-        supabase.from("company_experience").select("*").eq("company_id", cId).order("fecha_inicio", { ascending: false }),
-        supabase.from("company_team").select("*").eq("company_id", cId),
-      ]);
-
-      if (compRes.data) {
-        const c = compRes.data as any;
-        setCompany({
-          name: c.name || "", cif: c.cif || "", address: c.address || "",
-          phone: c.phone || "", website: c.website || "",
-          facturacion_anual: c.facturacion_anual?.toString() || "",
-          patrimonio_neto: c.patrimonio_neto?.toString() || "",
-          clasificacion_empresarial: c.clasificacion_empresarial || "",
-          capacidad_tecnica: c.capacidad_tecnica || "",
-          capacidad_economica: c.capacidad_economica || "",
-          sectores_actividad: c.sectores_actividad || [],
+        setCertifications(certRes.data || []);
+        setExperience(expRes.data || []);
+        setTeam(teamRes.data || []);
+      } catch (error: any) {
+        toast({
+          title: "Error de configuración",
+          description: error?.message || "No se pudo inicializar la empresa",
+          variant: "destructive",
         });
+      } finally {
+        setLoading(false);
       }
-      setCertifications(certRes.data || []);
-      setExperience(expRes.data || []);
-      setTeam(teamRes.data || []);
-      setLoading(false);
     };
+
     load();
   }, [user]);
 
