@@ -50,7 +50,7 @@ const capabilities = [
   {
     icon: Calculator,
     title: "Simulador de Scoring",
-    description: "Índices IAT, IRE y PEA que calculan tu probabilidad real de adjudicación.",
+    description: "Índices IAT (Índice de Adecuación Técnica), IRE (Índice de Riesgo de Exclusión) y PEA (Probabilidad Estimada de Adjudicación) que calculan tu probabilidad real de adjudicación.",
   },
   {
     icon: FileText,

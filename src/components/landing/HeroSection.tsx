@@ -121,7 +121,7 @@ const HeroSection = () => {
                 </div>
 
                 <div className="mt-4 flex gap-2 flex-wrap">
-                  {["IAT: 0.87", "IRE: Bajo", "Juicio valor 60%", "Automáticos 40%"].map((tag) => (
+                  {["IAT (Adecuación Técnica): 0.87", "IRE (Riesgo Exclusión): Bajo", "PEA (Prob. Adjudicación): 78%", "Juicio valor 60%"].map((tag) => (
                     <span key={tag} className="text-xs bg-accent/10 text-accent px-2.5 py-1 rounded-full font-medium">
                       {tag}
                     </span>
