@@ -22,7 +22,7 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
 
   const isActive = (href: string) => location.pathname === href || 
-    (href === "/dashboard/history" && (location.pathname === "/dashboard/tenders" || location.pathname === "/dashboard/reports" || location.pathname.startsWith("/dashboard/report/")));
+    (href === "/dashboard/history" && (location.pathname === "/dashboard/tenders" || location.pathname === "/dashboard/reports" || location.pathname.startsWith("/dashboard/report/") || location.pathname.startsWith("/dashboard/informe/")));
 
   return (
     <div className="min-h-screen bg-muted/30 flex">

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureCompanySetupForUser } from "@/lib/company-setup";
 import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,34 +49,30 @@ const NewAnalysis = () => {
 
   useEffect(() => {
     if (!user) return;
-    const load = async () => {
-      // Get or create profile + company
-      const { data: profile } = await supabase.from("profiles").select("company_id").eq("user_id", user.id).single();
-      
-      let cId = profile?.company_id;
-      
-      // If no company, create one automatically
-      if (!cId) {
-        const { data: newCompany } = await supabase.from("companies").insert({ name: "Mi Empresa" }).select("id").single();
-        if (newCompany) {
-          cId = newCompany.id;
-          await supabase.from("profiles").update({ company_id: cId }).eq("user_id", user.id);
-        }
-      }
 
-      if (cId) {
-        setCompanyId(cId);
-        const { data: projs } = await supabase.from("projects").select("id, name").eq("company_id", cId);
-        if (projs && projs.length > 0) {
-          setProjects(projs);
-          setProjectId(projs[0].id);
-        } else {
-          const { data: newProj } = await supabase.from("projects").insert({ name: "Proyecto General", company_id: cId }).select("id, name").single();
-          if (newProj) { setProjects([newProj]); setProjectId(newProj.id); }
-        }
+    const load = async () => {
+      setLoading(true);
+      try {
+        const {
+          companyId: ensuredCompanyId,
+          projects: ensuredProjects,
+          defaultProjectId,
+        } = await ensureCompanySetupForUser(user.id);
+
+        setCompanyId(ensuredCompanyId);
+        setProjects(ensuredProjects);
+        setProjectId(defaultProjectId);
+      } catch (error: any) {
+        toast({
+          title: "Error de configuración",
+          description: error?.message || "No se pudo preparar empresa/proyecto.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
+
     load();
   }, [user]);
 
