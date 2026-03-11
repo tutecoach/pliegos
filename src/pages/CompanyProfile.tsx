@@ -92,7 +92,10 @@ const CompanyProfile = () => {
   }, [user]);
 
   const saveCompany = async () => {
-    if (!companyId) return;
+    if (!companyId) {
+      toast({ title: "No hay empresa vinculada", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("companies").update({
       name: company.name, cif: company.cif, address: company.address,
