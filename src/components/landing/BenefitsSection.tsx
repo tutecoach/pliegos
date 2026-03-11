@@ -3,7 +3,7 @@ import { CheckCircle2 } from "lucide-react";
 
 const benefits = [
   "Reduce el análisis de pliegos de días a minutos con IA sectorial",
-  "Calcula tu probabilidad real de adjudicación con scoring predictivo (IAT + IRE + PEA)",
+  "Calcula tu probabilidad real de adjudicación con scoring predictivo: IAT (Índice de Adecuación Técnica), IRE (Índice de Riesgo de Exclusión) y PEA (Probabilidad Estimada de Adjudicación)",
   "Genera memorias técnicas sectoriales adaptadas a cada pliego",
   "Detecta riesgos jurídicos, técnicos y económicos antes de presentar",
   "Cruza automáticamente los requisitos del pliego con el perfil de tu empresa",
