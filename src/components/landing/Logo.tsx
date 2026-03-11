@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { FileText } from "lucide-react";
 
 interface LogoProps {
@@ -5,12 +6,13 @@ interface LogoProps {
   size?: "sm" | "md" | "lg";
 }
 
-const Logo = ({ className = "", size = "md" }: LogoProps) => {
+const Logo = forwardRef<HTMLDivElement, LogoProps>(({ className = "", size = "md" }, ref) => {
   const sizes = {
     sm: "text-lg",
     md: "text-2xl",
     lg: "text-4xl",
   };
+
   const iconSizes = {
     sm: 18,
     md: 26,
@@ -18,7 +20,7 @@ const Logo = ({ className = "", size = "md" }: LogoProps) => {
   };
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div ref={ref} className={`flex items-center gap-2 ${className}`}>
       <div className="relative">
         <FileText size={iconSizes[size]} className="text-primary" strokeWidth={1.5} />
       </div>
@@ -28,6 +30,8 @@ const Logo = ({ className = "", size = "md" }: LogoProps) => {
       </span>
     </div>
   );
-};
+});
+
+Logo.displayName = "Logo";
 
 export default Logo;

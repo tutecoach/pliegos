@@ -42,6 +42,7 @@ const App = () => (
             <Route path="/dashboard/tenders" element={<ProtectedRoute><History /></ProtectedRoute>} />
             <Route path="/dashboard/reports" element={<ProtectedRoute><History /></ProtectedRoute>} />
             <Route path="/dashboard/report/:tenderId" element={<ProtectedRoute><ReportView /></ProtectedRoute>} />
+            <Route path="/dashboard/informe/:tenderId" element={<ProtectedRoute><ReportView /></ProtectedRoute>} />
             <Route path="/dashboard/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
