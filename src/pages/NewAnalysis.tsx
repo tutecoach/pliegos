@@ -15,7 +15,7 @@ import PdfUploader from "@/components/tender/PdfUploader";
 import AnalysisReport from "@/components/tender/AnalysisReport";
 import EconomicSimulator from "@/components/tender/EconomicSimulator";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Loader2, Sparkles, FileText, CheckCircle, BookOpen, Calculator } from "lucide-react";
+import { Loader2, Sparkles, FileText, CheckCircle, BookOpen, Calculator, Building2 } from "lucide-react";
 
 type Step = "info" | "upload" | "analyzing" | "results";
 
