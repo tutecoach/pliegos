@@ -28,6 +28,7 @@ const History = () => {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [editingTenderId, setEditingTenderId] = useState<string | null>(null);
 
   const loadTenders = async () => {
     if (!user) return;
