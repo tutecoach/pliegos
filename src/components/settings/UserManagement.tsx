@@ -45,6 +45,7 @@ const UserManagement = () => {
   const [invName, setInvName] = useState("");
   const [invPlan, setInvPlan] = useState("starter");
   const [invRole, setInvRole] = useState("user");
+  const [invPassword, setInvPassword] = useState("");
 
   // Edit form
   const [editName, setEditName] = useState("");
