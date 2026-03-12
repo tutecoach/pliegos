@@ -42,9 +42,10 @@ const Settings = () => {
         setProfile(data);
         setFullName(data.full_name || "");
       }
+      const { data: roleCheck } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      setIsAdmin(!!roleCheck);
     };
     load();
-    // Load saved preferences
     const savedFormat = localStorage.getItem("pliego-smart-report-format");
     if (savedFormat) setReportFormat(savedFormat);
     const savedAutoSector = localStorage.getItem("pliego-smart-auto-sector");
