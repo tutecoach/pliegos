@@ -130,7 +130,7 @@ ${strategyRes.data ? `Económica: ${strategyRes.data.estrategia_economica || 'N/
 
 ${report?.resumen_ejecutivo ? `RESUMEN DEL ANÁLISIS: ${report.resumen_ejecutivo}` : ''}
 
-Genera la memoria técnica completa en Markdown, adaptada al sector ${sector}, maximizando la puntuación en criterios de juicio de valor.`;
+Genera la memoria técnica completa en Markdown, adaptada al sector ${sector}, maximizando la puntuación en criterios de juicio de valor. Debe ser concreta y ejecutiva (entre 1.200 y 1.800 palabras).`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
