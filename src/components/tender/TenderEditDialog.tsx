@@ -14,7 +14,8 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import PdfUploader from "@/components/tender/PdfUploader";
-import { Loader2, Save, FileText, Trash2 } from "lucide-react";
+import { Loader2, Save, FileText, Trash2, Sparkles } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 const SECTORES = [
   "Obras Civiles", "Energía", "Agua y Saneamiento", "Tecnología",
