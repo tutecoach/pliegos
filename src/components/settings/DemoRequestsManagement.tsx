@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, MessageSquare, CheckCircle, Eye } from "lucide-react";
+import { Loader2, MessageSquare, CheckCircle, Eye, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
 const STATUS_OPTIONS = [
@@ -41,7 +41,7 @@ const DemoRequestsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Approve dialog state
+  // Approve dialog
   const [approveRequest, setApproveRequest] = useState<DemoRequest | null>(null);
   const [approvePassword, setApprovePassword] = useState("");
   const [approveDays, setApproveDays] = useState("30");
@@ -49,6 +49,10 @@ const DemoRequestsManagement = () => {
 
   // Detail dialog
   const [detailRequest, setDetailRequest] = useState<DemoRequest | null>(null);
+
+  // Delete confirm
+  const [deleteRequest, setDeleteRequest] = useState<DemoRequest | null>(null);
+  const [deletingDemo, setDeletingDemo] = useState(false);
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
@@ -114,18 +118,13 @@ const DemoRequestsManagement = () => {
       });
 
       if (res.error) {
-        // Try to parse detailed error
         let msg = res.error.message;
         const ctx = (res.error as any)?.context;
         if (ctx instanceof Response) {
-          try {
-            const p = await ctx.clone().json();
-            if (p?.error) msg = String(p.error);
-          } catch { /* noop */ }
+          try { const p = await ctx.clone().json(); if (p?.error) msg = String(p.error); } catch { /* noop */ }
         }
         throw new Error(msg);
       }
-
       if (res.data?.error) throw new Error(res.data.error);
 
       const expiresAt = res.data?.demo_expires_at
@@ -143,6 +142,20 @@ const DemoRequestsManagement = () => {
       toast({ title: "Error al aprobar demo", description: err.message, variant: "destructive" });
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handleDeleteDemo = async () => {
+    if (!deleteRequest) return;
+    setDeletingDemo(true);
+    const { error } = await supabase.from("demo_requests").delete().eq("id", deleteRequest.id);
+    setDeletingDemo(false);
+    if (error) {
+      toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
+    } else {
+      setRequests(prev => prev.filter(r => r.id !== deleteRequest.id));
+      toast({ title: "Solicitud eliminada" });
+      setDeleteRequest(null);
     }
   };
 
@@ -198,29 +211,22 @@ const DemoRequestsManagement = () => {
                           </Select>
                         )}
                       </TableCell>
-                      <TableCell className="text-right space-x-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDetailRequest(r)}
-                          title="Ver detalle"
-                        >
-                          <Eye size={14} />
-                        </Button>
-                        {r.status !== "approved" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="gap-1 text-xs"
-                            onClick={() => {
-                              setApproveRequest(r);
-                              setApprovePassword("");
-                              setApproveDays("30");
-                            }}
-                          >
-                            <CheckCircle size={14} /> Aprobar
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => setDetailRequest(r)} title="Ver detalle">
+                            <Eye size={14} />
                           </Button>
-                        )}
+                          {r.status !== "approved" && (
+                            <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => {
+                              setApproveRequest(r); setApprovePassword(""); setApproveDays("30");
+                            }}>
+                              <CheckCircle size={14} /> Aprobar
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteRequest(r)} title="Eliminar">
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -234,21 +240,14 @@ const DemoRequestsManagement = () => {
       {/* Approve Demo Dialog */}
       <Dialog open={!!approveRequest} onOpenChange={open => { if (!open) setApproveRequest(null); }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Aprobar Demo</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Aprobar Demo</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
             Se creará una cuenta con plan <strong>Professional</strong> para <strong>{approveRequest?.email}</strong> en la empresa <strong>{approveRequest?.company_name}</strong>.
           </p>
           <div className="space-y-4 py-2">
             <div className="space-y-1">
               <Label>Contraseña para la cuenta *</Label>
-              <Input
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={approvePassword}
-                onChange={e => setApprovePassword(e.target.value)}
-              />
+              <Input type="password" placeholder="Mínimo 6 caracteres" value={approvePassword} onChange={e => setApprovePassword(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Duración del acceso (días)</Label>
@@ -277,9 +276,7 @@ const DemoRequestsManagement = () => {
       {/* Detail Dialog */}
       <Dialog open={!!detailRequest} onOpenChange={open => { if (!open) setDetailRequest(null); }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Detalle de Solicitud</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Detalle de Solicitud</DialogTitle></DialogHeader>
           {detailRequest && (
             <div className="space-y-3 text-sm">
               <div><span className="font-medium">Nombre:</span> {detailRequest.full_name}</div>
@@ -298,6 +295,23 @@ const DemoRequestsManagement = () => {
           )}
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cerrar</Button></DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Demo Confirm Dialog */}
+      <Dialog open={!!deleteRequest} onOpenChange={open => { if (!open) setDeleteRequest(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Eliminar solicitud</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            ¿Estás seguro de que querés eliminar la solicitud de <strong>{deleteRequest?.full_name}</strong> ({deleteRequest?.email})? Esta acción no se puede deshacer.
+          </p>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+            <Button variant="destructive" onClick={handleDeleteDemo} disabled={deletingDemo}>
+              {deletingDemo ? <Loader2 size={14} className="animate-spin mr-1" /> : <Trash2 size={14} className="mr-1" />}
+              Eliminar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
