@@ -17,7 +17,7 @@ const HeroSection = () => {
           description:
             "PLIEGO SMART combines legal-technical analysis, scoring simulation, and sector-specific technical memory generation to maximize your award probability.",
           sectors: "Civil Works · Energy · Technology · Healthcare · Water · Telecom · and more",
-          ctaPrimary: "Start now",
+          ctaPrimary: "Request a Demo",
           ctaSecondary: "Access platform",
           safe: "Secure multi-tenant",
           scoring: "Predictive scoring",
@@ -44,7 +44,7 @@ const HeroSection = () => {
           description:
             "PLIEGO SMART combina análisis jurídico-técnico, simulación de puntuación y generación de memoria técnica sectorial para maximizar tu probabilidad de adjudicación.",
           sectors: "Obras civiles · Energía · Tecnología · Sanidad · Agua · Telecomunicaciones · y más sectores",
-          ctaPrimary: "Comenzar ahora",
+          ctaPrimary: "Solicitar Demo",
           ctaSecondary: "Acceder al sistema",
           safe: "Multi-tenant seguro",
           scoring: "Scoring predictivo",
@@ -90,7 +90,7 @@ const HeroSection = () => {
 
             <div className="flex flex-col sm:flex-row gap-4 mb-12">
               <Button size="lg" className="text-base px-8 gap-2" asChild>
-                <Link to="/register">
+                <Link to="/request-demo">
                   {copy.ctaPrimary}
                   <ArrowRight size={18} />
                 </Link>

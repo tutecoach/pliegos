@@ -113,7 +113,7 @@ const PricingSection = () => {
           badge: "Plans",
           title: "Choose the plan that fits your bidding strategy",
           subtitle: "Compare capabilities by plan. You can customize and publish these plans from settings.",
-          cta: "Get started",
+          cta: "Request Demo",
           popular: "Most popular",
           withoutPrice: "Custom pricing available",
         }
@@ -121,7 +121,7 @@ const PricingSection = () => {
           badge: "Planes",
           title: "Elige el plan que impulsa tu estrategia de licitaciones",
           subtitle: "Compara capacidades por plan. Puedes personalizarlos y publicarlos desde configuración.",
-          cta: "Comenzar",
+          cta: "Solicitar Demo",
           popular: "Más popular",
           withoutPrice: "Precios personalizados disponibles",
         };
@@ -180,7 +180,7 @@ const PricingSection = () => {
               </ul>
 
               <Button className="w-full" variant={plan.highlighted ? "default" : "outline"} asChild>
-                <Link to="/register">{copy.cta}</Link>
+                <Link to="/request-demo">{copy.cta}</Link>
               </Button>
             </motion.div>
           ))}

@@ -104,8 +104,8 @@ const Login = () => {
 
           <p className="text-center text-sm text-muted-foreground">
             ¿No tienes cuenta?{" "}
-            <Link to="/register" className="text-accent font-medium hover:underline">
-              Registrar empresa
+            <Link to="/request-demo" className="text-accent font-medium hover:underline">
+              Solicitar demo
             </Link>
           </p>
         </div>

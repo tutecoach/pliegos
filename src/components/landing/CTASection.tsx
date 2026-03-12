@@ -14,7 +14,7 @@ const CTASection = () => {
           subtitle:
             "Join companies that already run strategic AI analysis in minutes: legal review, scoring simulation and technical memory generation.",
           regions: "Argentina · Spain · LATAM · European Union",
-          primary: "Start now",
+          primary: "Request a Demo",
           secondary: "Access platform",
         }
       : {
@@ -22,7 +22,7 @@ const CTASection = () => {
           subtitle:
             "Únete a las empresas que ya analizan sus pliegos con IA estratégica sectorial: análisis jurídico-técnico, scoring predictivo y memoria técnica en minutos.",
           regions: "Argentina · España · LATAM · Unión Europea",
-          primary: "Comenzar ahora",
+          primary: "Solicitar Demo",
           secondary: "Acceder al sistema",
         };
 
@@ -44,7 +44,7 @@ const CTASection = () => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" className="text-base px-8 gap-2" asChild>
-              <Link to="/register">
+              <Link to="/request-demo">
                 {copy.primary}
                 <ArrowRight size={18} />
               </Link>

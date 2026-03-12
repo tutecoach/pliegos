@@ -19,7 +19,7 @@ const Navbar = () => {
             { label: "Plans", href: "#pricing" },
           ],
           login: "Log in",
-          start: "Get started",
+          start: "Request Demo",
         }
       : {
           links: [
@@ -29,7 +29,7 @@ const Navbar = () => {
             { label: "Planes", href: "#pricing" },
           ],
           login: "Iniciar sesión",
-          start: "Comenzar",
+          start: "Solicitar Demo",
         };
 
   const toggleLanguage = () => setLanguage(language === "es" ? "en" : "es");
@@ -53,14 +53,14 @@ const Navbar = () => {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <Button size="sm" asChild>
+              <Link to="/request-demo">{copy.start}</Link>
+            </Button>
             <Button variant="outline" size="sm" onClick={toggleLanguage}>
               {language.toUpperCase()}
             </Button>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/login">{copy.login}</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to="/register">{copy.start}</Link>
             </Button>
           </div>
 
@@ -88,14 +88,14 @@ const Navbar = () => {
             </Button>
           </div>
           <div className="flex flex-col gap-2">
+            <Button size="sm" asChild>
+              <Link to="/request-demo" onClick={() => setOpen(false)}>
+                {copy.start}
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link to="/login" onClick={() => setOpen(false)}>
                 {copy.login}
-              </Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to="/register" onClick={() => setOpen(false)}>
-                {copy.start}
               </Link>
             </Button>
           </div>
