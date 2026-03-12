@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import AnalysisReport from "@/components/tender/AnalysisReport";
 import EconomicSimulator from "@/components/tender/EconomicSimulator";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Loader2, ArrowLeft, BookOpen, Calculator, Download } from "lucide-react";
+import { Loader2, ArrowLeft, BookOpen, Calculator, Download, FileText as FileTextIcon } from "lucide-react";
+import { exportReportAsWord, exportReportAsPdf } from "@/lib/report-export";
+import { toast } from "@/hooks/use-toast";
 
 const ReportView = () => {
   const { user } = useAuth();
