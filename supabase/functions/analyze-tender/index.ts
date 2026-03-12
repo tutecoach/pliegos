@@ -77,8 +77,8 @@ serve(async (req) => {
       for (const doc of docs) {
         const { data: fileData } = await supabase.storage.from("tender-documents").download(doc.file_path);
         if (fileData) {
-          const bytes = await fileData.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+        const bytes = new Uint8Array(await fileData.arrayBuffer());
+          const base64 = toBase64(bytes);
           pdfTexts.push(base64);
         }
       }
