@@ -208,7 +208,7 @@ const UserManagement = () => {
                 <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
                 <Button onClick={handleInvite} disabled={saving}>
                   {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
-                  Enviar invitación
+                  Crear usuario
                 </Button>
               </DialogFooter>
             </DialogContent>
