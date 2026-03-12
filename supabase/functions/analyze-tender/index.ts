@@ -363,7 +363,7 @@ ${companyContext}`;
       supabase.from("tender_matching").delete().eq("tender_id", tenderId),
     ]);
 
-    const persistenceOps: Promise<unknown>[] = [];
+    const persistenceOps = [];
 
     // Update tender sector
     if (reportData.sector_detectado) {
