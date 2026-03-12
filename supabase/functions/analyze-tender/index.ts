@@ -144,14 +144,14 @@ DATOS DE LA EMPRESA LICITADORA:
 - Capacidad Técnica: ${company.capacidad_tecnica || 'No proporcionada'}
 - Capacidad Económica: ${company.capacidad_economica || 'No proporcionada'}
 
-CERTIFICACIONES:
-${companyCerts?.map(c => `- ${c.nombre} (${c.organismo_emisor || 'N/A'}) - Vigente hasta: ${c.fecha_vencimiento || 'N/A'}`).join('\n') || 'Sin certificaciones registradas'}
+CERTIFICACIONES (máx ${MAX_COMPANY_ITEMS}):
+${safeList(companyCerts)?.map((c: any) => `- ${c.nombre} (${c.organismo_emisor || 'N/A'}) - Vigente hasta: ${c.fecha_vencimiento || 'N/A'}`).join('\n') || 'Sin certificaciones registradas'}
 
-EXPERIENCIA PREVIA:
-${companyExp?.map(e => `- ${e.titulo} | Cliente: ${e.cliente || 'N/A'} | Sector: ${e.sector || 'N/A'} | Importe: ${e.importe ? e.importe + '€' : 'N/A'}`).join('\n') || 'Sin experiencia registrada'}
+EXPERIENCIA PREVIA (máx ${MAX_COMPANY_ITEMS}):
+${safeList(companyExp)?.map((e: any) => `- ${e.titulo} | Cliente: ${e.cliente || 'N/A'} | Sector: ${e.sector || 'N/A'} | Importe: ${e.importe ? e.importe + '€' : 'N/A'}`).join('\n') || 'Sin experiencia registrada'}
 
-EQUIPO TÉCNICO:
-${companyTeam?.map(t => `- ${t.nombre} | ${t.cargo || 'N/A'} | ${t.titulacion || 'N/A'} | ${t.experiencia_anos || 0} años | Especialidad: ${t.sector_especialidad || 'N/A'}`).join('\n') || 'Sin equipo registrado'}
+EQUIPO TÉCNICO (máx ${MAX_COMPANY_ITEMS}):
+${safeList(companyTeam)?.map((t: any) => `- ${t.nombre} | ${t.cargo || 'N/A'} | ${t.titulacion || 'N/A'} | ${t.experiencia_anos || 0} años | Especialidad: ${t.sector_especialidad || 'N/A'}`).join('\n') || 'Sin equipo registrado'}
 ` : 'No se proporcionaron datos de empresa.';
 
     const systemPrompt = `Eres el motor estratégico de PLIEGO SMART. Actúas como un comité evaluador + asesor jurídico + director técnico + analista financiero + estratega competitivo.
