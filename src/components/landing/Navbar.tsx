@@ -29,7 +29,7 @@ const Navbar = () => {
             { label: "Planes", href: "#pricing" },
           ],
           login: "Iniciar sesión",
-          start: "Comenzar",
+          start: "Solicitar Demo",
         };
 
   const toggleLanguage = () => setLanguage(language === "es" ? "en" : "es");
