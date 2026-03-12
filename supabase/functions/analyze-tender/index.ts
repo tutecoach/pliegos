@@ -20,19 +20,30 @@ const toBase64 = (bytes: Uint8Array) => {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  let reportId: string | null = null;
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("No authorization header");
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+
+    if (!supabaseUrl || !supabaseKey || !anonKey) {
+      throw new Error("Missing backend environment variables");
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const anonClient = createClient(supabaseUrl, anonKey);
 
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!);
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (authError || !user) throw new Error("Unauthorized");
+    const token = authHeader.replace("Bearer ", "").trim();
+    const { data: claimsData, error: authError } = await anonClient.auth.getClaims(token);
+    const userId = claimsData?.claims?.sub;
+    if (authError || !userId) throw new Error("Unauthorized");
 
-    const { reportId } = await req.json();
+    const payload = await req.json();
+    reportId = payload?.reportId ?? null;
     if (!reportId) throw new Error("reportId is required");
 
     // Get report with tender info
@@ -390,6 +401,27 @@ ${companyContext}`;
     });
   } catch (e) {
     console.error("analyze-tender error:", e);
+
+    try {
+      if (reportId) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (supabaseUrl && supabaseKey) {
+          const adminClient = createClient(supabaseUrl, supabaseKey);
+          await adminClient
+            .from("analysis_reports")
+            .update({
+              status: "error",
+              report_data: { error: e instanceof Error ? e.message : "Unknown error" },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", reportId);
+        }
+      }
+    } catch (statusError) {
+      console.error("Failed to update analysis status:", statusError);
+    }
+
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
