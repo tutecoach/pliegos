@@ -137,22 +137,15 @@ serve(async (req) => {
       if (createError) {
         if (createError.code !== "email_exists") throw createError;
 
-        const { data: listedUsers, error: listUsersError } = await supabase.auth.admin.listUsers({
-          page: 1,
-          perPage: 1000,
-        });
+        const { data: listedUsers, error: listUsersError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
         if (listUsersError) throw listUsersError;
 
         const existingUser = listedUsers.users.find((u) => u.email?.toLowerCase() === email);
         if (!existingUser?.id) throw new Error("User exists but could not be resolved");
-
         targetUserId = existingUser.id;
 
         const { data: existingProfile, error: existingProfileError } = await supabase
-          .from("profiles")
-          .select("company_id")
-          .eq("user_id", targetUserId)
-          .maybeSingle();
+          .from("profiles").select("company_id").eq("user_id", targetUserId).maybeSingle();
         if (existingProfileError) throw existingProfileError;
 
         if (existingProfile?.company_id && existingProfile.company_id !== companyId) {
@@ -171,25 +164,15 @@ serve(async (req) => {
       if (!targetUserId) throw new Error("Could not resolve created user id");
 
       const { error: profileUpsertError } = await supabase.from("profiles").upsert(
-        {
-          user_id: targetUserId,
-          company_id: companyId,
-          full_name: fullName || null,
-          plan_tier: planTier,
-        },
+        { user_id: targetUserId, company_id: companyId, full_name: fullName || null, plan_tier: planTier },
         { onConflict: "user_id" }
       );
       if (profileUpsertError) throw profileUpsertError;
 
-      const { error: deleteRolesError } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", targetUserId);
+      const { error: deleteRolesError } = await supabase.from("user_roles").delete().eq("user_id", targetUserId);
       if (deleteRolesError) throw deleteRolesError;
 
-      const { error: insertRoleError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: targetUserId, role });
+      const { error: insertRoleError } = await supabase.from("user_roles").insert({ user_id: targetUserId, role });
       if (insertRoleError) throw insertRoleError;
 
       return jsonResponse({ success: true, created_user_id: targetUserId });
@@ -208,44 +191,26 @@ serve(async (req) => {
       if (!password || password.length < 6) throw new Error("Password must be at least 6 characters");
       if (!companyName) throw new Error("Company name is required");
 
-      // 1. Create the company for the demo user
       const { data: newCompany, error: companyError } = await supabase
-        .from("companies")
-        .insert({ name: companyName })
-        .select("id")
-        .single();
+        .from("companies").insert({ name: companyName }).select("id").single();
       if (companyError) throw companyError;
 
       const demoCompanyId = newCompany.id;
-
-      // 2. Create user in auth
       let targetUserId: string | null = null;
 
       const { data: createData, error: createError } = await supabase.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: fullName },
+        email, password, email_confirm: true, user_metadata: { full_name: fullName },
       });
 
       if (createError) {
         if (createError.code !== "email_exists") throw createError;
-
-        // User exists — find them
-        const { data: listedUsers, error: listUsersError } = await supabase.auth.admin.listUsers({
-          page: 1,
-          perPage: 1000,
-        });
+        const { data: listedUsers, error: listUsersError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
         if (listUsersError) throw listUsersError;
-
         const existingUser = listedUsers.users.find((u) => u.email?.toLowerCase() === email);
         if (!existingUser?.id) throw new Error("User exists but could not be resolved");
         targetUserId = existingUser.id;
-
-        // Update password
         const { error: updateErr } = await supabase.auth.admin.updateUserById(targetUserId, {
-          password,
-          user_metadata: { full_name: fullName || existingUser.user_metadata?.full_name || "" },
+          password, user_metadata: { full_name: fullName || existingUser.user_metadata?.full_name || "" },
         });
         if (updateErr) throw updateErr;
       } else {
@@ -254,52 +219,28 @@ serve(async (req) => {
 
       if (!targetUserId) throw new Error("Could not resolve created user id");
 
-      // 3. Calculate expiration
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + demoDays);
 
-      // 4. Upsert profile with demo_expires_at
       const { error: profileError2 } = await supabase.from("profiles").upsert(
-        {
-          user_id: targetUserId,
-          company_id: demoCompanyId,
-          full_name: fullName || null,
-          plan_tier: "professional" as PlanTier,
-          demo_expires_at: expiresAt.toISOString(),
-        },
+        { user_id: targetUserId, company_id: demoCompanyId, full_name: fullName || null, plan_tier: "professional" as PlanTier, demo_expires_at: expiresAt.toISOString() },
         { onConflict: "user_id" }
       );
       if (profileError2) throw profileError2;
 
-      // 5. Set role as admin of their demo company
-      const { error: deleteRolesError } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", targetUserId);
+      const { error: deleteRolesError } = await supabase.from("user_roles").delete().eq("user_id", targetUserId);
       if (deleteRolesError) throw deleteRolesError;
-
-      const { error: insertRoleError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: targetUserId, role: "admin" as AppRole });
+      const { error: insertRoleError } = await supabase.from("user_roles").insert({ user_id: targetUserId, role: "admin" as AppRole });
       if (insertRoleError) throw insertRoleError;
 
-      // 6. Update demo request status
       if (demoRequestId) {
-        await supabase
-          .from("demo_requests")
-          .update({ status: "approved" })
-          .eq("id", demoRequestId);
+        await supabase.from("demo_requests").update({ status: "approved" }).eq("id", demoRequestId);
       }
 
-      return jsonResponse({
-        success: true,
-        created_user_id: targetUserId,
-        company_id: demoCompanyId,
-        demo_expires_at: expiresAt.toISOString(),
-      });
+      return jsonResponse({ success: true, created_user_id: targetUserId, company_id: demoCompanyId, demo_expires_at: expiresAt.toISOString() });
     }
 
-    // ─── UPDATE ───
+    // ─── UPDATE USER ───
     if (action === "update") {
       const userId = String(body?.userId ?? "").trim();
       const fullName = body?.fullName !== undefined ? String(body.fullName).trim() : undefined;
@@ -311,10 +252,7 @@ serve(async (req) => {
       if (role && !validRoles.includes(role)) throw new Error("Invalid role");
 
       const { data: targetProfile, error: targetProfileError } = await supabase
-        .from("profiles")
-        .select("user_id, company_id")
-        .eq("user_id", userId)
-        .single();
+        .from("profiles").select("user_id, company_id").eq("user_id", userId).single();
 
       if (targetProfileError || !targetProfile || targetProfile.company_id !== companyId) {
         return jsonResponse({ error: "User not in your company" }, 403);
@@ -324,27 +262,72 @@ serve(async (req) => {
         const payload: Record<string, unknown> = {};
         if (planTier) payload.plan_tier = planTier;
         if (fullName !== undefined) payload.full_name = fullName || null;
-
-        const { error: profileUpdateError } = await supabase
-          .from("profiles")
-          .update(payload)
-          .eq("user_id", userId)
-          .eq("company_id", companyId);
+        const { error: profileUpdateError } = await supabase.from("profiles").update(payload).eq("user_id", userId).eq("company_id", companyId);
         if (profileUpdateError) throw profileUpdateError;
       }
 
       if (role) {
-        const { error: deleteRolesError } = await supabase
-          .from("user_roles")
-          .delete()
-          .eq("user_id", userId);
+        const { error: deleteRolesError } = await supabase.from("user_roles").delete().eq("user_id", userId);
         if (deleteRolesError) throw deleteRolesError;
-
-        const { error: insertRoleError } = await supabase
-          .from("user_roles")
-          .insert({ user_id: userId, role });
+        const { error: insertRoleError } = await supabase.from("user_roles").insert({ user_id: userId, role });
         if (insertRoleError) throw insertRoleError;
       }
+
+      return jsonResponse({ success: true });
+    }
+
+    // ─── UPDATE PASSWORD ───
+    if (action === "update-password") {
+      const userId = String(body?.userId ?? "").trim();
+      const newPassword = String(body?.newPassword ?? "").trim();
+
+      if (!userId) throw new Error("userId is required");
+      if (!newPassword || newPassword.length < 6) throw new Error("Password must be at least 6 characters");
+
+      // Verify user belongs to admin's company
+      const { data: targetProfile, error: targetProfileError } = await supabase
+        .from("profiles").select("user_id, company_id").eq("user_id", userId).single();
+
+      if (targetProfileError || !targetProfile || targetProfile.company_id !== companyId) {
+        return jsonResponse({ error: "User not in your company" }, 403);
+      }
+
+      // Cannot change own password through this (use forgot password instead)
+      if (userId === user.id) {
+        return jsonResponse({ error: "No podés cambiar tu propia contraseña desde aquí. Usá la opción de recuperar contraseña." }, 400);
+      }
+
+      const { error: updateErr } = await supabase.auth.admin.updateUserById(userId, { password: newPassword });
+      if (updateErr) throw updateErr;
+
+      return jsonResponse({ success: true });
+    }
+
+    // ─── DELETE USER ───
+    if (action === "delete-user") {
+      const userId = String(body?.userId ?? "").trim();
+
+      if (!userId) throw new Error("userId is required");
+
+      // Cannot delete yourself
+      if (userId === user.id) {
+        return jsonResponse({ error: "No podés eliminar tu propia cuenta" }, 400);
+      }
+
+      // Verify user belongs to admin's company
+      const { data: targetProfile, error: targetProfileError } = await supabase
+        .from("profiles").select("user_id, company_id").eq("user_id", userId).single();
+
+      if (targetProfileError || !targetProfile || targetProfile.company_id !== companyId) {
+        return jsonResponse({ error: "User not in your company" }, 403);
+      }
+
+      // Delete profile, roles, then auth user
+      await supabase.from("user_roles").delete().eq("user_id", userId);
+      await supabase.from("profiles").delete().eq("user_id", userId);
+
+      const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(userId);
+      if (deleteAuthError) throw deleteAuthError;
 
       return jsonResponse({ success: true });
     }
@@ -352,9 +335,6 @@ serve(async (req) => {
     return jsonResponse({ error: "Unsupported action" }, 400);
   } catch (error) {
     console.error("manage-company-users error:", error);
-    return jsonResponse(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      500
-    );
+    return jsonResponse({ error: error instanceof Error ? error.message : "Unknown error" }, 500);
   }
 });
