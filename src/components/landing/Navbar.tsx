@@ -88,14 +88,14 @@ const Navbar = () => {
             </Button>
           </div>
           <div className="flex flex-col gap-2">
+            <Button size="sm" asChild>
+              <Link to="/request-demo" onClick={() => setOpen(false)}>
+                {copy.start}
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link to="/login" onClick={() => setOpen(false)}>
                 {copy.login}
-              </Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to="/register" onClick={() => setOpen(false)}>
-                {copy.start}
               </Link>
             </Button>
           </div>
