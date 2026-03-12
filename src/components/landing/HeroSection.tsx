@@ -17,7 +17,7 @@ const HeroSection = () => {
           description:
             "PLIEGO SMART combines legal-technical analysis, scoring simulation, and sector-specific technical memory generation to maximize your award probability.",
           sectors: "Civil Works · Energy · Technology · Healthcare · Water · Telecom · and more",
-          ctaPrimary: "Start now",
+          ctaPrimary: "Request a Demo",
           ctaSecondary: "Access platform",
           safe: "Secure multi-tenant",
           scoring: "Predictive scoring",
