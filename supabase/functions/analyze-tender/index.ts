@@ -7,6 +7,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_DOCS_FOR_AI = 1;
+const MAX_PDF_SIZE_BYTES = 2_000_000;
+const MAX_COMPANY_ITEMS = 15;
+
 const toBase64 = (bytes: Uint8Array) => {
   let binary = "";
   const chunkSize = 0x8000;
@@ -16,6 +20,8 @@ const toBase64 = (bytes: Uint8Array) => {
   }
   return btoa(binary);
 };
+
+const safeList = (items: unknown[] | null | undefined, max = MAX_COMPANY_ITEMS) => (items ?? []).slice(0, max);
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
