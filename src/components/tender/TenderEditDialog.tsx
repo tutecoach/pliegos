@@ -38,11 +38,14 @@ interface ExistingDoc {
 }
 
 const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditDialogProps) => {
+  const { user } = useAuth();
   const { currencyOption } = useCurrency();
   const sym = currencyOption.symbol;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [existingDocs, setExistingDocs] = useState<ExistingDoc[]>([]);
   const [deletingDoc, setDeletingDoc] = useState<string | null>(null);
 
