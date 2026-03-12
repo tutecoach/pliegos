@@ -10,6 +10,7 @@ import { FolderOpen, FileText, BarChart3, Sparkles, Building2, Clock, Calendar }
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { formatCurrency } = useCurrency();
   const [profile, setProfile] = useState<{ full_name: string; company_id: string | null } | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [stats, setStats] = useState({ projects: 0, tenders: 0, reports: 0 });
