@@ -314,15 +314,13 @@ const UserManagement = () => {
                           <Button variant="ghost" size="sm" onClick={() => openEdit(u)} title="Editar">
                             <Pencil size={14} />
                           </Button>
+                          <Button variant="ghost" size="sm" onClick={() => { setPasswordUser(u); setNewPassword(""); }} title="Cambiar contraseña">
+                            <KeyRound size={14} />
+                          </Button>
                           {!isSelf(u) && (
-                            <>
-                              <Button variant="ghost" size="sm" onClick={() => { setPasswordUser(u); setNewPassword(""); }} title="Cambiar contraseña">
-                                <KeyRound size={14} />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteUser(u)} title="Eliminar">
-                                <Trash2 size={14} />
-                              </Button>
-                            </>
+                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteUser(u)} title="Eliminar">
+                              <Trash2 size={14} />
+                            </Button>
                           )}
                         </div>
                       </TableCell>
