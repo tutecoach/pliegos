@@ -32,7 +32,13 @@ const CTASection = () => {
         <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
           <h2 className="text-3xl sm:text-4xl font-bold mb-6">{copy.title}</h2>
           <p className="text-lg text-muted-foreground mb-4 max-w-2xl mx-auto">{copy.subtitle}</p>
-          <p className="text-sm text-muted-foreground/70 mb-8">{copy.regions}</p>
+          <p className="text-sm text-muted-foreground/70 mb-2">{copy.regions}</p>
+          <p className="text-sm text-muted-foreground/70 mb-1">
+            <a href="tel:+5492645792222" className="hover:text-foreground transition-colors">📞 +54 9 264 579 2222</a>
+          </p>
+          <p className="text-sm text-muted-foreground/70 mb-8">
+            <a href="mailto:cuyotradingsas@gmail.com" className="hover:text-foreground transition-colors">✉️ cuyotradingsas@gmail.com</a>
+          </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" className="text-base px-8 gap-2" asChild>
               <Link to="/register">
