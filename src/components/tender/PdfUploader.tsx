@@ -136,7 +136,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
             file_name: item.file.name,
             file_path: filePath,
             file_size: item.file.size,
-            mime_type: "application/pdf",
+            mime_type: getMimeType(item.file),
             uploaded_by: (await supabase.auth.getUser()).data.user?.id,
           })
           .select("id")
