@@ -9,7 +9,7 @@ import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
+import RequestDemo from "./pages/RequestDemo";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
