@@ -61,7 +61,31 @@ const UserManagement = () => {
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 
-    if (res.error) throw new Error(res.error.message);
+    if (res.error) {
+      let parsedMessage = res.error.message;
+      const ctx = (res.error as any)?.context;
+
+      if (ctx instanceof Response) {
+        try {
+          const payload = await ctx.clone().json();
+          if (payload?.error) parsedMessage = String(payload.error);
+        } catch {
+          // noop
+        }
+      } else if (typeof ctx === "string") {
+        try {
+          const payload = JSON.parse(ctx);
+          if (payload?.error) parsedMessage = String(payload.error);
+        } catch {
+          // noop
+        }
+      } else if (ctx && typeof ctx === "object" && "error" in ctx) {
+        parsedMessage = String((ctx as { error: unknown }).error);
+      }
+
+      throw new Error(parsedMessage);
+    }
+
     if (res.data?.error) throw new Error(res.data.error);
     return res.data;
   }, []);
