@@ -113,7 +113,7 @@ const PricingSection = () => {
           badge: "Plans",
           title: "Choose the plan that fits your bidding strategy",
           subtitle: "Compare capabilities by plan. You can customize and publish these plans from settings.",
-          cta: "Get started",
+          cta: "Request Demo",
           popular: "Most popular",
           withoutPrice: "Custom pricing available",
         }
