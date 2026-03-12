@@ -61,7 +61,31 @@ const UserManagement = () => {
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 
-    if (res.error) throw new Error(res.error.message);
+    if (res.error) {
+      let parsedMessage = res.error.message;
+      const ctx = (res.error as any)?.context;
+
+      if (ctx instanceof Response) {
+        try {
+          const payload = await ctx.clone().json();
+          if (payload?.error) parsedMessage = String(payload.error);
+        } catch {
+          // noop
+        }
+      } else if (typeof ctx === "string") {
+        try {
+          const payload = JSON.parse(ctx);
+          if (payload?.error) parsedMessage = String(payload.error);
+        } catch {
+          // noop
+        }
+      } else if (ctx && typeof ctx === "object" && "error" in ctx) {
+        parsedMessage = String((ctx as { error: unknown }).error);
+      }
+
+      throw new Error(parsedMessage);
+    }
+
     if (res.data?.error) throw new Error(res.data.error);
     return res.data;
   }, []);
@@ -111,9 +135,12 @@ const UserManagement = () => {
       loadUsers();
     } catch (err: any) {
       const message = String(err?.message || "Error desconocido");
-      const friendlyMessage = message.includes("already been registered")
-        ? "Ese email ya existe. Podés usar otro email o editar el usuario existente."
-        : message;
+      const friendlyMessage =
+        message.includes("ya pertenece a otra empresa")
+          ? "Ese email ya está asociado a otra empresa. Usá otro email para crear este usuario."
+          : message.includes("already been registered") || message.includes("email_exists")
+            ? "Ese email ya existe. Podés usar otro email o editar el usuario existente."
+            : message;
       toast({ title: "Error al crear usuario", description: friendlyMessage, variant: "destructive" });
     } finally {
       setSaving(false);
