@@ -22,14 +22,28 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
+
   const addFiles = useCallback((newFiles: File[]) => {
     const pdfs = newFiles.filter((f) => f.type === "application/pdf");
     if (pdfs.length !== newFiles.length) {
       toast({ title: "Solo se permiten archivos PDF", variant: "destructive" });
     }
-    if (pdfs.length === 0) return;
 
-    const items: FileItem[] = pdfs.map((file) => ({
+    const validBySize = pdfs.filter((f) => f.size <= MAX_FILE_SIZE_BYTES);
+    const oversized = pdfs.filter((f) => f.size > MAX_FILE_SIZE_BYTES);
+
+    if (oversized.length > 0) {
+      toast({
+        title: "Archivo demasiado grande",
+        description: "El tamaño máximo por archivo es 30MB.",
+        variant: "destructive",
+      });
+    }
+
+    if (validBySize.length === 0) return;
+
+    const items: FileItem[] = validBySize.map((file) => ({
       file,
       id: crypto.randomUUID(),
       progress: 0,
