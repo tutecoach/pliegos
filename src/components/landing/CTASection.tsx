@@ -22,7 +22,7 @@ const CTASection = () => {
           subtitle:
             "Únete a las empresas que ya analizan sus pliegos con IA estratégica sectorial: análisis jurídico-técnico, scoring predictivo y memoria técnica en minutos.",
           regions: "Argentina · España · LATAM · Unión Europea",
-          primary: "Comenzar ahora",
+          primary: "Solicitar Demo",
           secondary: "Acceder al sistema",
         };
 
