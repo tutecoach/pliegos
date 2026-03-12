@@ -54,6 +54,31 @@ const NewAnalysis = () => {
   const [uploadedDocsCount, setUploadedDocsCount] = useState(0);
   const [startingAnalysis, setStartingAnalysis] = useState(false);
 
+  // Load all companies for the user (multi-company support)
+  const loadCompaniesForUser = async (userId: string) => {
+    const [ucRes, profileRes] = await Promise.all([
+      supabase.from("user_companies").select("company_id").eq("user_id", userId),
+      supabase.from("profiles").select("company_id, plan_tier").eq("user_id", userId).single(),
+    ]);
+    const companyIds = new Set<string>();
+    if (profileRes.data?.company_id) companyIds.add(profileRes.data.company_id);
+    (ucRes.data || []).forEach((uc: any) => companyIds.add(uc.company_id));
+    setPlanTier(profileRes.data?.plan_tier || "starter");
+
+    if (companyIds.size > 0) {
+      const { data: companiesData } = await supabase
+        .from("companies").select("id, name").in("id", Array.from(companyIds));
+      setAllCompanies(companiesData || []);
+    }
+    return profileRes.data?.company_id || null;
+  };
+
+  const loadProjectsForCompany = async (cId: string) => {
+    const { data } = await supabase.from("projects").select("id, name").eq("company_id", cId).is("deleted_at", null);
+    setProjects(data || []);
+    if (data && data.length > 0) setProjectId(data[0].id);
+  };
+
   useEffect(() => {
     if (!user) return;
     const load = async () => {
@@ -63,6 +88,7 @@ const NewAnalysis = () => {
         setCompanyId(ensuredCompanyId);
         setProjects(ensuredProjects);
         setProjectId(defaultProjectId);
+        await loadCompaniesForUser(user.id);
       } catch (error: any) {
         toast({ title: "Error de configuración", description: error?.message || "No se pudo preparar empresa/proyecto.", variant: "destructive" });
       } finally {
@@ -71,6 +97,11 @@ const NewAnalysis = () => {
     };
     load();
   }, [user]);
+
+  const handleCompanySwitch = async (newCompanyId: string) => {
+    setCompanyId(newCompanyId);
+    await loadProjectsForCompany(newCompanyId);
+  };
 
   const createTender = async () => {
     if (!title.trim()) { toast({ title: "El título es obligatorio", variant: "destructive" }); return; }
