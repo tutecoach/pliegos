@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import UserManagement from "@/components/settings/UserManagement";
+import DemoRequestsManagement from "@/components/settings/DemoRequestsManagement";
 import { toast } from "@/hooks/use-toast";
 import { Settings as SettingsIcon, Loader2, Save } from "lucide-react";
 
@@ -206,6 +207,7 @@ const Settings = () => {
           </Card>
           {/* User Management - only for admins */}
           {isAdmin && <UserManagement />}
+          {isAdmin && <DemoRequestsManagement />}
         </div>
       </div>
     </DashboardLayout>
