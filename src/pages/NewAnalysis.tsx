@@ -200,6 +200,32 @@ const NewAnalysis = () => {
               <CardDescription>Información del pliego. Los campos con * son obligatorios.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Company selector for multi-company (Enterprise) users */}
+              {allCompanies.length > 1 && planTier === "enterprise" && (
+                <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-2">
+                  <Label className="flex items-center gap-2 font-semibold">
+                    <Building2 size={16} className="text-primary" />
+                    Empresa para el análisis *
+                  </Label>
+                  <Select value={companyId || ""} onValueChange={handleCompanySwitch}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allCompanies.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          <div className="flex items-center gap-2">
+                            <Building2 size={14} /> {c.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    El perfil de esta empresa se usará para contrastar con los requisitos del pliego.
+                  </p>
+                </div>
+              )}
               <div><Label>Título *</Label><Input placeholder="Ej: Servicio de limpieza del Ayuntamiento" value={title} onChange={e => setTitle(e.target.value)} /></div>
               <div><Label>Entidad contratante</Label><Input placeholder="Ej: Ayuntamiento de Madrid" value={contractingEntity} onChange={e => setContractingEntity(e.target.value)} /></div>
               <div className="grid sm:grid-cols-2 gap-4">
