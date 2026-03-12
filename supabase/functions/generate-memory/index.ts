@@ -132,31 +132,60 @@ ${report?.resumen_ejecutivo ? `RESUMEN DEL ANÁLISIS: ${report.resumen_ejecutivo
 
 Genera la memoria técnica completa en Markdown, adaptada al sector ${sector}, maximizando la puntuación en criterios de juicio de valor. Debe ser concreta y ejecutiva (entre 1.200 y 1.800 palabras).`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.3,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 95000);
+
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.3,
+          max_tokens: 2200,
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return new Response(JSON.stringify({ error: "La generación tardó demasiado. Probá nuevamente." }), {
+          status: 504,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const aiRaw = await aiResponse.text();
 
     if (!aiResponse.ok) {
       const status = aiResponse.status;
       if (status === 429) return new Response(JSON.stringify({ error: "Límite de solicitudes excedido." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       if (status === 402) return new Response(JSON.stringify({ error: "Créditos insuficientes." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      console.error("AI gateway error body:", aiRaw.slice(0, 800));
       throw new Error(`AI gateway error: ${status}`);
     }
 
-    const aiData = await aiResponse.json();
+    let aiData: any;
+    try {
+      aiData = JSON.parse(aiRaw);
+    } catch {
+      console.error("AI response parse error body:", aiRaw.slice(0, 800));
+      throw new Error("Respuesta inválida del motor de IA");
+    }
+
     const content = aiData.choices?.[0]?.message?.content || "";
+    if (!content.trim()) throw new Error("No se pudo generar contenido");
 
     // Save technical memory
     const { data: memory, error: memError } = await supabase.from("technical_memories").insert({
