@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -12,11 +13,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { toast } from "@/hooks/use-toast";
-import { Search, FileText, Calendar, Loader2, ExternalLink, RotateCcw, Trash2 } from "lucide-react";
+import { Search, FileText, Calendar, Loader2, ExternalLink, RotateCcw, Trash2, BookOpen, BarChart3 } from "lucide-react";
 
 const History = () => {
   const { user } = useAuth();
+  const { formatCurrency } = useCurrency();
   const [tenders, setTenders] = useState<any[]>([]);
+  const [memoriesMap, setMemoriesMap] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sectorFilter, setSectorFilter] = useState("all");
@@ -31,13 +34,23 @@ const History = () => {
     if (!profile?.company_id) { setLoading(false); return; }
     setCompanyId(profile.company_id);
 
-    const { data } = await supabase
-      .from("tenders")
-      .select("id, title, contracting_entity, contract_amount, sector, status, created_at, submission_deadline")
-      .eq("company_id", profile.company_id)
-      .order("created_at", { ascending: false });
+    const [tendersRes, memoriesRes] = await Promise.all([
+      supabase
+        .from("tenders")
+        .select("id, title, contracting_entity, contract_amount, sector, status, created_at, submission_deadline")
+        .eq("company_id", profile.company_id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("technical_memories")
+        .select("tender_id")
+        .eq("company_id", profile.company_id),
+    ]);
 
-    setTenders(data || []);
+    setTenders(tendersRes.data || []);
+    
+    const memMap: Record<string, boolean> = {};
+    (memoriesRes.data || []).forEach((m: any) => { memMap[m.tender_id] = true; });
+    setMemoriesMap(memMap);
     setLoading(false);
   };
 
@@ -48,7 +61,6 @@ const History = () => {
     e.stopPropagation();
     setRetrying(tenderId);
     try {
-      // Find or create an analysis report for this tender
       const { data: existing } = await supabase
         .from("analysis_reports")
         .select("id")
@@ -59,7 +71,6 @@ const History = () => {
       let reportId: string;
       if (existing && existing.length > 0) {
         reportId = existing[0].id;
-        // Reset status to processing
         await supabase.from("analysis_reports").update({ status: "processing", report_data: null } as any).eq("id", reportId);
       } else {
         const { data: newReport, error } = await supabase.from("analysis_reports").insert({
@@ -90,7 +101,6 @@ const History = () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      // Soft delete tender
       await supabase.from("tenders").update({ deleted_at: new Date().toISOString() }).eq("id", deleteTarget.id);
       setTenders(prev => prev.filter(t => t.id !== deleteTarget.id));
       toast({ title: "Licitación eliminada", description: `"${deleteTarget.title}" ha sido eliminada.` });
@@ -120,6 +130,7 @@ const History = () => {
   };
 
   const canRetry = (status: string) => status === "pending" || status === "error";
+  const hasMemory = (tenderId: string) => memoriesMap[tenderId] === true;
 
   return (
     <DashboardLayout>
@@ -152,49 +163,68 @@ const History = () => {
         ) : (
           <div className="space-y-3">
             {filtered.map(t => (
-              <Link key={t.id} to={`/dashboard/report/${t.id}`} className="block">
-                <div className="bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-colors">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate">{t.title}</h3>
-                      <p className="text-sm text-muted-foreground">{t.contracting_entity || "Sin entidad"}</p>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {t.sector && <Badge variant="outline" className="text-xs">{t.sector}</Badge>}
-                        {statusBadge(t.status)}
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Calendar size={12} />{new Date(t.created_at).toLocaleDateString("es-ES")}
-                        </span>
-                      </div>
+              <div key={t.id} className="bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-colors">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold truncate">{t.title}</h3>
+                    <p className="text-sm text-muted-foreground">{t.contracting_entity || "Sin entidad"}</p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {t.sector && <Badge variant="outline" className="text-xs">{t.sector}</Badge>}
+                      {statusBadge(t.status)}
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Calendar size={12} />{new Date(t.created_at).toLocaleDateString("es-ES")}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {t.contract_amount && (
-                        <p className="font-semibold text-primary mr-2">{Number(t.contract_amount).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</p>
-                      )}
-                      {canRetry(t.status) && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          title="Reintentar análisis"
-                          disabled={retrying === t.id}
-                          onClick={(e) => handleRetry(e, t.id)}
-                        >
-                          {retrying === t.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    {t.contract_amount && (
+                      <p className="font-semibold text-primary mr-2">{formatCurrency(Number(t.contract_amount))}</p>
+                    )}
+
+                    {/* Informe de análisis */}
+                    {t.status === "completed" && (
+                      <Link to={`/dashboard/report/${t.id}`} onClick={e => e.stopPropagation()}>
+                        <Button variant="outline" size="sm" title="Ver informe de análisis">
+                          <BarChart3 size={14} className="mr-1" />Informe
                         </Button>
-                      )}
+                      </Link>
+                    )}
+
+                    {/* Memoria técnica */}
+                    <Link to={`/dashboard/technical-memory?tenderId=${t.id}`} onClick={e => e.stopPropagation()}>
+                      <Button
+                        variant={hasMemory(t.id) ? "outline" : "secondary"}
+                        size="sm"
+                        title={hasMemory(t.id) ? "Ver / Regenerar memoria técnica" : "Generar memoria técnica"}
+                      >
+                        <BookOpen size={14} className="mr-1" />
+                        {hasMemory(t.id) ? "Memoria" : "Generar Memoria"}
+                      </Button>
+                    </Link>
+
+                    {canRetry(t.status) && (
                       <Button
                         variant="outline"
                         size="icon"
-                        title="Eliminar licitación"
-                        className="text-destructive hover:bg-destructive/10"
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget({ id: t.id, title: t.title }); }}
+                        title="Reintentar análisis"
+                        disabled={retrying === t.id}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRetry(e, t.id); }}
                       >
-                        <Trash2 size={14} />
+                        {retrying === t.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
                       </Button>
-                      <ExternalLink size={14} className="text-muted-foreground" />
-                    </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Eliminar licitación"
+                      className="text-destructive hover:bg-destructive/10"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget({ id: t.id, title: t.title }); }}
+                    >
+                      <Trash2 size={14} />
+                    </Button>
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}

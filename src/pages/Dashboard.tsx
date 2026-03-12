@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
@@ -9,6 +10,7 @@ import { FolderOpen, FileText, BarChart3, Sparkles, Building2, Clock, Calendar }
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { formatCurrency } = useCurrency();
   const [profile, setProfile] = useState<{ full_name: string; company_id: string | null } | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [stats, setStats] = useState({ projects: 0, tenders: 0, reports: 0 });
@@ -93,7 +95,7 @@ const Dashboard = () => {
                       <span className="text-xs text-muted-foreground flex items-center gap-1"><Calendar size={10} />{new Date(t.created_at).toLocaleDateString("es-ES")}</span>
                     </div>
                   </div>
-                  {t.contract_amount && <span className="text-sm font-medium text-primary shrink-0">{Number(t.contract_amount).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</span>}
+                  {t.contract_amount && <span className="text-sm font-medium text-primary shrink-0">{formatCurrency(Number(t.contract_amount))}</span>}
                 </Link>
               ))}
             </div>
