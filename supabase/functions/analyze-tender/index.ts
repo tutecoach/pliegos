@@ -401,6 +401,27 @@ ${companyContext}`;
     });
   } catch (e) {
     console.error("analyze-tender error:", e);
+
+    try {
+      if (reportId) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (supabaseUrl && supabaseKey) {
+          const adminClient = createClient(supabaseUrl, supabaseKey);
+          await adminClient
+            .from("analysis_reports")
+            .update({
+              status: "error",
+              report_data: { error: e instanceof Error ? e.message : "Unknown error" },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", reportId);
+        }
+      }
+    } catch (statusError) {
+      console.error("Failed to update analysis status:", statusError);
+    }
+
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
