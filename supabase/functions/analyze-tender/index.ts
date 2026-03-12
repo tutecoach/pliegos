@@ -7,6 +7,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const MAX_DOCS_FOR_AI = 1;
+const MAX_PDF_SIZE_BYTES = 2_000_000;
+const MAX_COMPANY_ITEMS = 15;
+
 const toBase64 = (bytes: Uint8Array) => {
   let binary = "";
   const chunkSize = 0x8000;
@@ -17,10 +21,13 @@ const toBase64 = (bytes: Uint8Array) => {
   return btoa(binary);
 };
 
+const safeList = (items: unknown[] | null | undefined, max = MAX_COMPANY_ITEMS) => (items ?? []).slice(0, max);
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   let reportId: string | null = null;
+  let tenderIdForStatus: string | null = null;
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -54,6 +61,9 @@ serve(async (req) => {
       .single();
     if (reportError || !report) throw new Error("Report not found");
 
+    tenderIdForStatus = report.tender_id;
+    await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderIdForStatus);
+
     // Get company data for matching (CAPA 3)
     const { data: company } = await supabase
       .from("companies")
@@ -82,17 +92,39 @@ serve(async (req) => {
       .select("file_name, file_path, file_size, mime_type")
       .eq("tender_id", report.tender_id);
 
-    // Download PDF content
-    let pdfTexts: string[] = [];
-    if (docs && docs.length > 0) {
-      for (const doc of docs) {
-        const { data: fileData } = await supabase.storage.from("tender-documents").download(doc.file_path);
-        if (fileData) {
-        const bytes = new Uint8Array(await fileData.arrayBuffer());
-          const base64 = toBase64(bytes);
-          pdfTexts.push(base64);
-        }
+    const pdfDocs = (docs ?? []).filter((doc) => {
+      const mime = doc.mime_type?.toLowerCase() ?? "";
+      const name = doc.file_name?.toLowerCase() ?? "";
+      return mime.includes("pdf") || name.endsWith(".pdf");
+    });
+
+    const docsForAi = pdfDocs.slice(0, MAX_DOCS_FOR_AI);
+    const skippedDocs: string[] = [];
+    const attachedDocs: { file_name: string; base64: string }[] = [];
+
+    for (const doc of docsForAi) {
+      if (doc.file_size && doc.file_size > MAX_PDF_SIZE_BYTES) {
+        skippedDocs.push(`${doc.file_name} (omitido por tamaño > ${Math.round(MAX_PDF_SIZE_BYTES / 1_000_000)}MB)`);
+        continue;
       }
+
+      const { data: fileData, error: downloadError } = await supabase.storage.from("tender-documents").download(doc.file_path);
+      if (downloadError || !fileData) {
+        skippedDocs.push(`${doc.file_name} (no se pudo descargar)`);
+        continue;
+      }
+
+      const bytes = new Uint8Array(await fileData.arrayBuffer());
+      if (bytes.length > MAX_PDF_SIZE_BYTES) {
+        skippedDocs.push(`${doc.file_name} (omitido por tamaño > ${Math.round(MAX_PDF_SIZE_BYTES / 1_000_000)}MB)`);
+        continue;
+      }
+
+      attachedDocs.push({ file_name: doc.file_name, base64: toBase64(bytes) });
+    }
+
+    if (pdfDocs.length > MAX_DOCS_FOR_AI) {
+      skippedDocs.push(`${pdfDocs.length - MAX_DOCS_FOR_AI} documento(s) extra no procesado(s)`);
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -112,14 +144,14 @@ DATOS DE LA EMPRESA LICITADORA:
 - Capacidad Técnica: ${company.capacidad_tecnica || 'No proporcionada'}
 - Capacidad Económica: ${company.capacidad_economica || 'No proporcionada'}
 
-CERTIFICACIONES:
-${companyCerts?.map(c => `- ${c.nombre} (${c.organismo_emisor || 'N/A'}) - Vigente hasta: ${c.fecha_vencimiento || 'N/A'}`).join('\n') || 'Sin certificaciones registradas'}
+CERTIFICACIONES (máx ${MAX_COMPANY_ITEMS}):
+${safeList(companyCerts)?.map((c: any) => `- ${c.nombre} (${c.organismo_emisor || 'N/A'}) - Vigente hasta: ${c.fecha_vencimiento || 'N/A'}`).join('\n') || 'Sin certificaciones registradas'}
 
-EXPERIENCIA PREVIA:
-${companyExp?.map(e => `- ${e.titulo} | Cliente: ${e.cliente || 'N/A'} | Sector: ${e.sector || 'N/A'} | Importe: ${e.importe ? e.importe + '€' : 'N/A'}`).join('\n') || 'Sin experiencia registrada'}
+EXPERIENCIA PREVIA (máx ${MAX_COMPANY_ITEMS}):
+${safeList(companyExp)?.map((e: any) => `- ${e.titulo} | Cliente: ${e.cliente || 'N/A'} | Sector: ${e.sector || 'N/A'} | Importe: ${e.importe ? e.importe + '€' : 'N/A'}`).join('\n') || 'Sin experiencia registrada'}
 
-EQUIPO TÉCNICO:
-${companyTeam?.map(t => `- ${t.nombre} | ${t.cargo || 'N/A'} | ${t.titulacion || 'N/A'} | ${t.experiencia_anos || 0} años | Especialidad: ${t.sector_especialidad || 'N/A'}`).join('\n') || 'Sin equipo registrado'}
+EQUIPO TÉCNICO (máx ${MAX_COMPANY_ITEMS}):
+${safeList(companyTeam)?.map((t: any) => `- ${t.nombre} | ${t.cargo || 'N/A'} | ${t.titulacion || 'N/A'} | ${t.experiencia_anos || 0} años | Especialidad: ${t.sector_especialidad || 'N/A'}`).join('\n') || 'Sin equipo registrado'}
 ` : 'No se proporcionaron datos de empresa.';
 
     const systemPrompt = `Eres el motor estratégico de PLIEGO SMART. Actúas como un comité evaluador + asesor jurídico + director técnico + analista financiero + estratega competitivo.
@@ -155,16 +187,18 @@ Plazo presentación: ${tenderInfo?.submission_deadline || 'No especificado'}
 Garantía provisional: ${tenderInfo?.garantia_provisional || 'No especificada'}€
 Garantía definitiva: ${tenderInfo?.garantia_definitiva || 'No especificada'}€
 Clasificación requerida: ${tenderInfo?.clasificacion_requerida || 'No especificada'}
-Documentos adjuntos: ${docs?.map(d => d.file_name).join(', ') || 'Ninguno'}
+Documentos adjuntos en expediente: ${pdfDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
+Documentos realmente enviados a IA: ${attachedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
+${skippedDocs.length ? `Documentos omitidos: ${skippedDocs.join('; ')}` : ''}
 
 ${companyContext}`;
 
-    if (pdfTexts.length > 0) {
+    if (attachedDocs.length > 0) {
       const userContent: any[] = [{ type: "text", text: tenderText }];
-      for (let i = 0; i < pdfTexts.length; i++) {
+      for (const doc of attachedDocs) {
         userContent.push({
           type: "file",
-          file: { filename: docs![i].file_name, file_data: `data:application/pdf;base64,${pdfTexts[i]}` },
+          file: { filename: doc.file_name, file_data: `data:application/pdf;base64,${doc.base64}` },
         });
       }
       messages.push({ role: "user", content: userContent });
@@ -318,83 +352,126 @@ ${companyContext}`;
 
     // Store structured data in sub-tables
     const tenderId = report.tender_id;
-    
+
+    // Clean previous generated rows to avoid duplicates on retries
+    await Promise.all([
+      supabase.from("tender_requirements_admin").delete().eq("tender_id", tenderId),
+      supabase.from("tender_requirements_tech").delete().eq("tender_id", tenderId),
+      supabase.from("tender_criteria").delete().eq("tender_id", tenderId),
+      supabase.from("tender_risks").delete().eq("tender_id", tenderId),
+      supabase.from("tender_strategy").delete().eq("tender_id", tenderId),
+      supabase.from("tender_matching").delete().eq("tender_id", tenderId),
+    ]);
+
+    const persistenceOps = [];
+
     // Update tender sector
     if (reportData.sector_detectado) {
-      await supabase.from("tenders").update({ sector: reportData.sector_detectado }).eq("id", tenderId);
+      persistenceOps.push(supabase.from("tenders").update({ sector: reportData.sector_detectado }).eq("id", tenderId));
     }
 
     // Save admin requirements
     if (reportData.requisitos_administrativos?.length) {
-      await supabase.from("tender_requirements_admin").insert(
-        reportData.requisitos_administrativos.map((r: any) => ({
-          tender_id: tenderId, descripcion: r.descripcion, obligatorio: r.obligatorio ?? true,
-          normativa_aplicable: r.normativa, riesgo_exclusion: r.riesgo_exclusion || 'medio',
-        }))
+      persistenceOps.push(
+        supabase.from("tender_requirements_admin").insert(
+          reportData.requisitos_administrativos.map((r: any) => ({
+            tender_id: tenderId,
+            descripcion: r.descripcion,
+            obligatorio: r.obligatorio ?? true,
+            normativa_aplicable: r.normativa,
+            riesgo_exclusion: r.riesgo_exclusion || "medio",
+          })),
+        ),
       );
     }
 
     // Save tech requirements
     if (reportData.requisitos_tecnicos?.length) {
-      await supabase.from("tender_requirements_tech").insert(
-        reportData.requisitos_tecnicos.map((r: any) => ({
-          tender_id: tenderId, descripcion: r.descripcion,
-          experiencia_minima: r.experiencia_minima, equipo_minimo: r.equipo_minimo, medios_minimos: r.medios_minimos,
-        }))
+      persistenceOps.push(
+        supabase.from("tender_requirements_tech").insert(
+          reportData.requisitos_tecnicos.map((r: any) => ({
+            tender_id: tenderId,
+            descripcion: r.descripcion,
+            experiencia_minima: r.experiencia_minima,
+            equipo_minimo: r.equipo_minimo,
+            medios_minimos: r.medios_minimos,
+          })),
+        ),
       );
     }
 
     // Save criteria
     if (reportData.criterios_adjudicacion?.length) {
-      await supabase.from("tender_criteria").insert(
-        reportData.criterios_adjudicacion.map((c: any) => ({
-          tender_id: tenderId, tipo: c.tipo, descripcion: c.criterio,
-          ponderacion: c.ponderacion, formula: c.formula,
-        }))
+      persistenceOps.push(
+        supabase.from("tender_criteria").insert(
+          reportData.criterios_adjudicacion.map((c: any) => ({
+            tender_id: tenderId,
+            tipo: c.tipo,
+            descripcion: c.criterio,
+            ponderacion: c.ponderacion,
+            formula: c.formula,
+          })),
+        ),
       );
     }
 
     // Save risks
     if (reportData.riesgos?.length) {
-      await supabase.from("tender_risks").insert(
-        reportData.riesgos.map((r: any) => ({
-          tender_id: tenderId, tipo: r.tipo, descripcion: r.descripcion,
-          nivel: r.nivel, mitigacion: r.mitigacion,
-        }))
+      persistenceOps.push(
+        supabase.from("tender_risks").insert(
+          reportData.riesgos.map((r: any) => ({
+            tender_id: tenderId,
+            tipo: r.tipo,
+            descripcion: r.descripcion,
+            nivel: r.nivel,
+            mitigacion: r.mitigacion,
+          })),
+        ),
       );
     }
 
     // Save strategy
     if (reportData.estrategia) {
-      await supabase.from("tender_strategy").insert({
-        tender_id: tenderId,
-        estrategia_economica: reportData.estrategia.economica,
-        estrategia_tecnica: reportData.estrategia.tecnica,
-        mejoras_propuestas: reportData.estrategia.mejoras_propuestas,
-        narrativa_recomendada: reportData.estrategia.narrativa_recomendada,
-      });
+      persistenceOps.push(
+        supabase.from("tender_strategy").insert({
+          tender_id: tenderId,
+          estrategia_economica: reportData.estrategia.economica,
+          estrategia_tecnica: reportData.estrategia.tecnica,
+          mejoras_propuestas: reportData.estrategia.mejoras_propuestas,
+          narrativa_recomendada: reportData.estrategia.narrativa_recomendada,
+        }),
+      );
     }
 
     // Save matching
     if (reportData.comparativa_empresa && company) {
-      await supabase.from("tender_matching").insert({
-        tender_id: tenderId, company_id: report.company_id,
-        cumplimiento: reportData.comparativa_empresa.cumplimiento,
-        iat_score: reportData.scoring?.iat || 0,
-        ire_score: reportData.scoring?.ire || 0,
-        pea_score: reportData.scoring?.pea || 0,
-        riesgo: reportData.scoring?.recomendacion_presentarse,
-        observaciones: reportData.comparativa_empresa.observaciones,
-        acciones_recomendadas: reportData.comparativa_empresa.acciones_recomendadas,
-        fortalezas: reportData.comparativa_empresa.fortalezas || [],
-        brechas: reportData.comparativa_empresa.brechas || [],
-      });
+      persistenceOps.push(
+        supabase.from("tender_matching").insert({
+          tender_id: tenderId,
+          company_id: report.company_id,
+          cumplimiento: reportData.comparativa_empresa.cumplimiento,
+          iat_score: reportData.scoring?.iat || 0,
+          ire_score: reportData.scoring?.ire || 0,
+          pea_score: reportData.scoring?.pea || 0,
+          riesgo: reportData.scoring?.recomendacion_presentarse,
+          observaciones: reportData.comparativa_empresa.observaciones,
+          acciones_recomendadas: reportData.comparativa_empresa.acciones_recomendadas,
+          fortalezas: reportData.comparativa_empresa.fortalezas || [],
+          brechas: reportData.comparativa_empresa.brechas || [],
+        }),
+      );
     }
 
-    // Update report
-    await supabase.from("analysis_reports")
-      .update({ status: "completed", report_data: reportData, updated_at: new Date().toISOString() })
-      .eq("id", reportId);
+    await Promise.all(persistenceOps);
+
+    // Update report and tender status
+    await Promise.all([
+      supabase
+        .from("analysis_reports")
+        .update({ status: "completed", report_data: reportData, updated_at: new Date().toISOString() })
+        .eq("id", reportId),
+      supabase.from("tenders").update({ status: "completed" }).eq("id", tenderId),
+    ]);
 
     return new Response(JSON.stringify({ success: true, report_data: reportData }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -403,20 +480,30 @@ ${companyContext}`;
     console.error("analyze-tender error:", e);
 
     try {
-      if (reportId) {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL");
-        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-        if (supabaseUrl && supabaseKey) {
-          const adminClient = createClient(supabaseUrl, supabaseKey);
-          await adminClient
-            .from("analysis_reports")
-            .update({
-              status: "error",
-              report_data: { error: e instanceof Error ? e.message : "Unknown error" },
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", reportId);
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (supabaseUrl && supabaseKey) {
+        const adminClient = createClient(supabaseUrl, supabaseKey);
+        const updates = [];
+
+        if (reportId) {
+          updates.push(
+            adminClient
+              .from("analysis_reports")
+              .update({
+                status: "error",
+                report_data: { error: e instanceof Error ? e.message : "Unknown error" },
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", reportId),
+          );
         }
+
+        if (tenderIdForStatus) {
+          updates.push(adminClient.from("tenders").update({ status: "error" }).eq("id", tenderIdForStatus));
+        }
+
+        await Promise.all(updates);
       }
     } catch (statusError) {
       console.error("Failed to update analysis status:", statusError);
