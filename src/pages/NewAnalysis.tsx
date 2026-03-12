@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureCompanySetupForUser } from "@/lib/company-setup";
 import { toast } from "@/hooks/use-toast";
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import PdfUploader from "@/components/tender/PdfUploader";
 import AnalysisReport from "@/components/tender/AnalysisReport";
 import EconomicSimulator from "@/components/tender/EconomicSimulator";
@@ -25,6 +27,7 @@ const SECTORES = [
 
 const NewAnalysis = () => {
   const { user } = useAuth();
+  const { currencyOption } = useCurrency();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("info");
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -51,30 +54,19 @@ const NewAnalysis = () => {
 
   useEffect(() => {
     if (!user) return;
-
     const load = async () => {
       setLoading(true);
       try {
-        const {
-          companyId: ensuredCompanyId,
-          projects: ensuredProjects,
-          defaultProjectId,
-        } = await ensureCompanySetupForUser(user.id);
-
+        const { companyId: ensuredCompanyId, projects: ensuredProjects, defaultProjectId } = await ensureCompanySetupForUser(user.id);
         setCompanyId(ensuredCompanyId);
         setProjects(ensuredProjects);
         setProjectId(defaultProjectId);
       } catch (error: any) {
-        toast({
-          title: "Error de configuración",
-          description: error?.message || "No se pudo preparar empresa/proyecto.",
-          variant: "destructive",
-        });
+        toast({ title: "Error de configuración", description: error?.message || "No se pudo preparar empresa/proyecto.", variant: "destructive" });
       } finally {
         setLoading(false);
       }
     };
-
     load();
   }, [user]);
 
@@ -84,7 +76,6 @@ const NewAnalysis = () => {
       toast({ title: "Error de configuración", description: "No se pudo vincular tu empresa. Ve a Perfil de Empresa para configurarla.", variant: "destructive" });
       return;
     }
-
     const { data: tender, error } = await supabase.from("tenders").insert({
       title: title.trim(), company_id: companyId, project_id: projectId,
       contracting_entity: contractingEntity.trim() || null,
@@ -98,7 +89,6 @@ const NewAnalysis = () => {
       clasificacion_requerida: clasificacionReq || null,
       valor_estimado: valorEstimado ? parseFloat(valorEstimado) : null,
     }).select("id").single();
-
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
     setTenderId(tender.id);
     setUploadedDocsCount(0);
@@ -107,37 +97,24 @@ const NewAnalysis = () => {
 
   const startAnalysis = async () => {
     if (!tenderId || !companyId || startingAnalysis) return;
-
     setStartingAnalysis(true);
-
     const { count: docsCount, error: docsError } = await supabase
-      .from("tender_documents")
-      .select("id", { count: "exact", head: true })
-      .eq("tender_id", tenderId);
-
+      .from("tender_documents").select("id", { count: "exact", head: true }).eq("tender_id", tenderId);
     if (docsError || !docsCount || docsCount < 1) {
-      toast({
-        title: "Sube al menos un PDF",
-        description: "Necesitamos al menos un documento cargado para ejecutar el análisis.",
-        variant: "destructive",
-      });
+      toast({ title: "Sube al menos un PDF", description: "Necesitamos al menos un documento cargado para ejecutar el análisis.", variant: "destructive" });
       setStartingAnalysis(false);
       return;
     }
-
     setStep("analyzing");
-
     const { data: report, error: reportError } = await supabase.from("analysis_reports")
       .insert({ tender_id: tenderId, company_id: companyId, created_by: user?.id, status: "processing" })
       .select("id").single();
-
     if (reportError) {
       toast({ title: "Error", description: reportError.message, variant: "destructive" });
       setStep("upload");
       setStartingAnalysis(false);
       return;
     }
-
     try {
       const { data, error } = await supabase.functions.invoke("analyze-tender", { body: { reportId: report.id } });
       if (error) throw error;
@@ -152,6 +129,8 @@ const NewAnalysis = () => {
     }
   };
 
+  const sym = currencyOption.symbol;
+
   const steps = [
     { key: "info", label: "Datos", icon: FileText },
     { key: "upload", label: "Documentos", icon: FileText },
@@ -162,9 +141,7 @@ const NewAnalysis = () => {
 
   if (loading) return (
     <DashboardLayout>
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-primary" size={32} />
-      </div>
+      <div className="flex items-center justify-center h-64"><Loader2 className="animate-spin text-primary" size={32} /></div>
     </DashboardLayout>
   );
 
@@ -183,7 +160,6 @@ const NewAnalysis = () => {
           ))}
         </div>
 
-        {/* Step 1: Info */}
         {step === "info" && (
           <Card>
             <CardHeader>
@@ -194,16 +170,16 @@ const NewAnalysis = () => {
               <div><Label>Título *</Label><Input placeholder="Ej: Servicio de limpieza del Ayuntamiento" value={title} onChange={e => setTitle(e.target.value)} /></div>
               <div><Label>Entidad contratante</Label><Input placeholder="Ej: Ayuntamiento de Madrid" value={contractingEntity} onChange={e => setContractingEntity(e.target.value)} /></div>
               <div className="grid sm:grid-cols-2 gap-4">
-                <div><Label>Presupuesto base (€)</Label><Input type="number" value={contractAmount} onChange={e => setContractAmount(e.target.value)} /></div>
-                <div><Label>Valor estimado (€)</Label><Input type="number" value={valorEstimado} onChange={e => setValorEstimado(e.target.value)} /></div>
+                <div><Label>Presupuesto base ({sym})</Label><CurrencyInput value={contractAmount} onChange={setContractAmount} /></div>
+                <div><Label>Valor estimado ({sym})</Label><CurrencyInput value={valorEstimado} onChange={setValorEstimado} /></div>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div><Label>Duración</Label><Input placeholder="Ej: 24 meses" value={duration} onChange={e => setDuration(e.target.value)} /></div>
                 <div><Label>Fecha límite presentación</Label><Input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)} /></div>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
-                <div><Label>Garantía provisional (€)</Label><Input type="number" value={garantiaProv} onChange={e => setGarantiaProv(e.target.value)} /></div>
-                <div><Label>Garantía definitiva (€)</Label><Input type="number" value={garantiaDef} onChange={e => setGarantiaDef(e.target.value)} /></div>
+                <div><Label>Garantía provisional ({sym})</Label><CurrencyInput value={garantiaProv} onChange={setGarantiaProv} /></div>
+                <div><Label>Garantía definitiva ({sym})</Label><CurrencyInput value={garantiaDef} onChange={setGarantiaDef} /></div>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div><Label>Clasificación requerida</Label><Input placeholder="Ej: Grupo C, Subgrupo 6" value={clasificacionReq} onChange={e => setClasificacionReq(e.target.value)} /></div>
@@ -229,7 +205,6 @@ const NewAnalysis = () => {
           </Card>
         )}
 
-        {/* Step 2: Upload */}
         {step === "upload" && tenderId && (
           <Card>
             <CardHeader>
@@ -246,7 +221,6 @@ const NewAnalysis = () => {
           </Card>
         )}
 
-        {/* Step 3: Analyzing */}
         {step === "analyzing" && (
           <Card>
             <CardContent className="p-12 text-center">
@@ -266,7 +240,6 @@ const NewAnalysis = () => {
           </Card>
         )}
 
-        {/* Step 4: Results */}
         {step === "results" && reportData && (
           <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -283,14 +256,12 @@ const NewAnalysis = () => {
                 <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>Volver al Dashboard</Button>
               </div>
             </div>
-
             {showSimulator && (
               <EconomicSimulator
                 presupuestoBase={contractAmount ? parseFloat(contractAmount) : undefined}
                 criteriosEconomicos={reportData.criterios_adjudicacion?.filter((c: any) => c.tipo === "automatico" && c.criterio?.toLowerCase().includes("econ")) || []}
               />
             )}
-
             <AnalysisReport data={reportData} />
           </div>
         )}
