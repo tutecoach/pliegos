@@ -292,10 +292,7 @@ serve(async (req) => {
         return jsonResponse({ error: "User not in your company" }, 403);
       }
 
-      // Cannot change own password through this (use forgot password instead)
-      if (userId === user.id) {
-        return jsonResponse({ error: "No podés cambiar tu propia contraseña desde aquí. Usá la opción de recuperar contraseña." }, 400);
-      }
+      // Admins can change their own password too
 
       const { error: updateErr } = await supabase.auth.admin.updateUserById(userId, { password: newPassword });
       if (updateErr) throw updateErr;
