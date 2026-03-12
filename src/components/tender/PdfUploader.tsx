@@ -178,7 +178,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
           {isDragOver ? "Suelta los archivos aquí" : "Arrastra y suelta tus PDFs aquí"}
         </p>
         <p className="text-sm text-muted-foreground mt-1">
-          o haz clic para seleccionar · Máximo 30MB por archivo
+          o haz clic para seleccionar · Máximo 60MB por archivo
         </p>
       </div>
 
