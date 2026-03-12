@@ -106,14 +106,37 @@ const NewAnalysis = () => {
   };
 
   const startAnalysis = async () => {
-    if (!tenderId || !companyId) return;
+    if (!tenderId || !companyId || startingAnalysis) return;
+
+    setStartingAnalysis(true);
+
+    const { count: docsCount, error: docsError } = await supabase
+      .from("tender_documents")
+      .select("id", { count: "exact", head: true })
+      .eq("tender_id", tenderId);
+
+    if (docsError || !docsCount || docsCount < 1) {
+      toast({
+        title: "Sube al menos un PDF",
+        description: "Necesitamos al menos un documento cargado para ejecutar el análisis.",
+        variant: "destructive",
+      });
+      setStartingAnalysis(false);
+      return;
+    }
+
     setStep("analyzing");
 
     const { data: report, error: reportError } = await supabase.from("analysis_reports")
       .insert({ tender_id: tenderId, company_id: companyId, created_by: user?.id, status: "processing" })
       .select("id").single();
 
-    if (reportError) { toast({ title: "Error", description: reportError.message, variant: "destructive" }); setStep("upload"); return; }
+    if (reportError) {
+      toast({ title: "Error", description: reportError.message, variant: "destructive" });
+      setStep("upload");
+      setStartingAnalysis(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.functions.invoke("analyze-tender", { body: { reportId: report.id } });
@@ -124,6 +147,8 @@ const NewAnalysis = () => {
     } catch (err: any) {
       toast({ title: "Error en el análisis", description: err.message, variant: "destructive" });
       setStep("upload");
+    } finally {
+      setStartingAnalysis(false);
     }
   };
 

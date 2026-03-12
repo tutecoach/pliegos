@@ -20,6 +20,8 @@ const toBase64 = (bytes: Uint8Array) => {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  let reportId: string | null = null;
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("No authorization header");
