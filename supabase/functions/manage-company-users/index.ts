@@ -136,6 +136,8 @@ serve(async (req) => {
       if (!validPlanTiers.includes(planTier)) throw new Error("Invalid plan tier");
       if (!validRoles.includes(role)) throw new Error("Invalid role");
 
+      let targetUserId: string | null = null;
+
       const { data: createData, error: createError } = await supabase.auth.admin.createUser({
         email,
         password,
@@ -143,14 +145,51 @@ serve(async (req) => {
         user_metadata: { full_name: fullName },
       });
 
-      if (createError) throw createError;
+      if (createError) {
+        if (createError.code !== "email_exists") throw createError;
 
-      const newUserId = createData?.user?.id;
-      if (!newUserId) throw new Error("Could not resolve created user id");
+        const { data: listedUsers, error: listUsersError } = await supabase.auth.admin.listUsers({
+          page: 1,
+          perPage: 1000,
+        });
+        if (listUsersError) throw listUsersError;
+
+        const existingUser = listedUsers.users.find((u) => u.email?.toLowerCase() === email);
+        if (!existingUser?.id) {
+          throw new Error("User exists but could not be resolved");
+        }
+
+        targetUserId = existingUser.id;
+
+        const { data: existingProfile, error: existingProfileError } = await supabase
+          .from("profiles")
+          .select("company_id")
+          .eq("user_id", targetUserId)
+          .maybeSingle();
+
+        if (existingProfileError) throw existingProfileError;
+
+        if (existingProfile?.company_id && existingProfile.company_id !== companyId) {
+          return new Response(JSON.stringify({ error: "El email ya pertenece a otra empresa" }), {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const { error: updateAuthUserError } = await supabase.auth.admin.updateUserById(targetUserId, {
+          password,
+          user_metadata: { full_name: fullName || existingUser.user_metadata?.full_name || "" },
+        });
+        if (updateAuthUserError) throw updateAuthUserError;
+      } else {
+        targetUserId = createData?.user?.id ?? null;
+      }
+
+      if (!targetUserId) throw new Error("Could not resolve created user id");
 
       const { error: profileUpsertError } = await supabase.from("profiles").upsert(
         {
-          user_id: newUserId,
+          user_id: targetUserId,
           company_id: companyId,
           full_name: fullName || null,
           plan_tier: planTier,
@@ -163,15 +202,15 @@ serve(async (req) => {
       const { error: deleteRolesError } = await supabase
         .from("user_roles")
         .delete()
-        .eq("user_id", newUserId);
+        .eq("user_id", targetUserId);
       if (deleteRolesError) throw deleteRolesError;
 
       const { error: insertRoleError } = await supabase
         .from("user_roles")
-        .insert({ user_id: newUserId, role });
+        .insert({ user_id: targetUserId, role });
       if (insertRoleError) throw insertRoleError;
 
-      return new Response(JSON.stringify({ success: true, created_user_id: newUserId }), {
+      return new Response(JSON.stringify({ success: true, created_user_id: targetUserId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
