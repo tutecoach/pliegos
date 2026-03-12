@@ -110,7 +110,11 @@ const UserManagement = () => {
       setInvRole("user");
       loadUsers();
     } catch (err: any) {
-      toast({ title: "Error al crear usuario", description: err.message, variant: "destructive" });
+      const message = String(err?.message || "Error desconocido");
+      const friendlyMessage = message.includes("already been registered")
+        ? "Ese email ya existe. Podés usar otro email o editar el usuario existente."
+        : message;
+      toast({ title: "Error al crear usuario", description: friendlyMessage, variant: "destructive" });
     } finally {
       setSaving(false);
     }
