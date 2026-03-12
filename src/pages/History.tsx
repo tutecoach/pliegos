@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { toast } from "@/hooks/use-toast";
-import { Search, FileText, Calendar, Loader2, ExternalLink, RotateCcw, Trash2, BookOpen, BarChart3 } from "lucide-react";
+import { Search, FileText, Calendar, Loader2, ExternalLink, RotateCcw, Trash2, BookOpen, BarChart3, Pencil } from "lucide-react";
+import TenderEditDialog from "@/components/tender/TenderEditDialog";
 
 const History = () => {
   const { user } = useAuth();
@@ -27,6 +28,7 @@ const History = () => {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [editingTenderId, setEditingTenderId] = useState<string | null>(null);
 
   const loadTenders = async () => {
     if (!user) return;
@@ -213,6 +215,16 @@ const History = () => {
                         {retrying === t.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
                       </Button>
                     )}
+                    {/* Editar licitación */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Editar datos y documentos"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingTenderId(t.id); }}
+                    >
+                      <Pencil size={14} />
+                    </Button>
+
                     <Button
                       variant="outline"
                       size="icon"
@@ -247,6 +259,13 @@ const History = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TenderEditDialog
+        tenderId={editingTenderId}
+        open={!!editingTenderId}
+        onOpenChange={(open) => { if (!open) setEditingTenderId(null); }}
+        onSaved={() => { setEditingTenderId(null); loadTenders(); }}
+      />
     </DashboardLayout>
   );
 };
