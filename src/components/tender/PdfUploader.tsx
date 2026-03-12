@@ -22,7 +22,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
+  const MAX_FILE_SIZE_BYTES = 60 * 1024 * 1024;
 
   const addFiles = useCallback((newFiles: File[]) => {
     const pdfs = newFiles.filter((f) => f.type === "application/pdf");
