@@ -480,20 +480,30 @@ ${companyContext}`;
     console.error("analyze-tender error:", e);
 
     try {
-      if (reportId) {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL");
-        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-        if (supabaseUrl && supabaseKey) {
-          const adminClient = createClient(supabaseUrl, supabaseKey);
-          await adminClient
-            .from("analysis_reports")
-            .update({
-              status: "error",
-              report_data: { error: e instanceof Error ? e.message : "Unknown error" },
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", reportId);
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (supabaseUrl && supabaseKey) {
+        const adminClient = createClient(supabaseUrl, supabaseKey);
+        const updates: Promise<unknown>[] = [];
+
+        if (reportId) {
+          updates.push(
+            adminClient
+              .from("analysis_reports")
+              .update({
+                status: "error",
+                report_data: { error: e instanceof Error ? e.message : "Unknown error" },
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", reportId),
+          );
         }
+
+        if (tenderIdForStatus) {
+          updates.push(adminClient.from("tenders").update({ status: "error" }).eq("id", tenderIdForStatus));
+        }
+
+        await Promise.all(updates);
       }
     } catch (statusError) {
       console.error("Failed to update analysis status:", statusError);
