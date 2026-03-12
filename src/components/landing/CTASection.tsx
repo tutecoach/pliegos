@@ -14,7 +14,7 @@ const CTASection = () => {
           subtitle:
             "Join companies that already run strategic AI analysis in minutes: legal review, scoring simulation and technical memory generation.",
           regions: "Argentina · Spain · LATAM · European Union",
-          primary: "Start now",
+          primary: "Request a Demo",
           secondary: "Access platform",
         }
       : {
