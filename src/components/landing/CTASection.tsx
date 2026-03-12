@@ -13,7 +13,7 @@ const CTASection = () => {
           title: "Stop reading tenders. Start winning them.",
           subtitle:
             "Join companies that already run strategic AI analysis in minutes: legal review, scoring simulation and technical memory generation.",
-          regions: "Argentina · Spain · LATAM · European Union",
+          regions: "Argentina · LATAM · European Union",
           primary: "Request a Demo",
           secondary: "Access platform",
         }
