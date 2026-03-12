@@ -237,7 +237,7 @@ const NewAnalysis = () => {
               <CardDescription>La IA analizará los PDFs con las 4 capas del motor estratégico.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <PdfUploader tenderId={tenderId} onUploadComplete={() => {}} />
+              <PdfUploader tenderId={tenderId} onUploadComplete={(docIds) => setUploadedDocsCount((prev) => prev + docIds.length)} />
               <div className="flex gap-3">
                 <Button variant="outline" onClick={() => setStep("info")} className="flex-1">Atrás</Button>
                 <Button onClick={startAnalysis} className="flex-1"><Sparkles size={16} className="mr-2" />Iniciar Análisis 4 Capas</Button>
