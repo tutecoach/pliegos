@@ -31,8 +31,10 @@ const NewAnalysis = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("info");
   const [companyId, setCompanyId] = useState<string | null>(null);
+  const [allCompanies, setAllCompanies] = useState<{ id: string; name: string }[]>([]);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [planTier, setPlanTier] = useState<string>("starter");
 
   const [title, setTitle] = useState("");
   const [contractingEntity, setContractingEntity] = useState("");
