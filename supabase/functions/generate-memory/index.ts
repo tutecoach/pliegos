@@ -189,7 +189,7 @@ Genera la memoria técnica completa en Markdown, adaptada al sector ${sector}, m
 
     // Save technical memory
     const { data: memory, error: memError } = await supabase.from("technical_memories").insert({
-      tender_id: tenderId, company_id: companyId, content, sector, status: "generated", created_by: user.id,
+      tender_id: tenderId, company_id: companyId, content, sector, status: "generated", created_by: userId,
     }).select("id").single();
 
     if (memError) throw memError;
