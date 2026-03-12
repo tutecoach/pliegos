@@ -29,6 +29,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <LanguageProvider>
+        <CurrencyProvider>
         <BrowserRouter>
           <AuthProvider>
             <Routes>
