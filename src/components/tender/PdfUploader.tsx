@@ -22,7 +22,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
+  const MAX_FILE_SIZE_BYTES = 60 * 1024 * 1024;
 
   const addFiles = useCallback((newFiles: File[]) => {
     const pdfs = newFiles.filter((f) => f.type === "application/pdf");
@@ -36,7 +36,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
     if (oversized.length > 0) {
       toast({
         title: "Archivo demasiado grande",
-        description: "El tamaño máximo por archivo es 30MB.",
+        description: "El tamaño máximo por archivo es 60MB.",
         variant: "destructive",
       });
     }
@@ -178,7 +178,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
           {isDragOver ? "Suelta los archivos aquí" : "Arrastra y suelta tus PDFs aquí"}
         </p>
         <p className="text-sm text-muted-foreground mt-1">
-          o haz clic para seleccionar · Máximo 30MB por archivo
+          o haz clic para seleccionar · Máximo 60MB por archivo
         </p>
       </div>
 

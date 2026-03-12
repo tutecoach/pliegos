@@ -1,0 +1,1 @@
+UPDATE storage.buckets SET file_size_limit = 62914560 WHERE id = 'tender-documents';
