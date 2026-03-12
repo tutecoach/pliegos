@@ -45,6 +45,7 @@ const UserManagement = () => {
   const [invName, setInvName] = useState("");
   const [invPlan, setInvPlan] = useState("starter");
   const [invRole, setInvRole] = useState("user");
+  const [invPassword, setInvPassword] = useState("");
 
   // Edit form
   const [editName, setEditName] = useState("");
@@ -82,8 +83,12 @@ const UserManagement = () => {
   }, [user, loadUsers]);
 
   const handleInvite = async () => {
-    if (!invEmail.trim()) {
-      toast({ title: "El email es obligatorio", variant: "destructive" });
+    if (!invEmail.trim() || !invPassword.trim()) {
+      toast({ title: "Email y contraseña son obligatorios", variant: "destructive" });
+      return;
+    }
+    if (invPassword.length < 6) {
+      toast({ title: "La contraseña debe tener al menos 6 caracteres", variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -92,19 +97,20 @@ const UserManagement = () => {
         action: "invite",
         email: invEmail,
         fullName: invName,
+        password: invPassword,
         planTier: invPlan,
         role: invRole,
-        redirectTo: `${window.location.origin}/login`,
       });
-      toast({ title: "Invitación enviada" });
+      toast({ title: "Usuario creado exitosamente", description: `Se creó la cuenta para ${invEmail}` });
       setInviteOpen(false);
       setInvEmail("");
       setInvName("");
+      setInvPassword("");
       setInvPlan("starter");
       setInvRole("user");
       loadUsers();
     } catch (err: any) {
-      toast({ title: "Error al invitar", description: err.message, variant: "destructive" });
+      toast({ title: "Error al crear usuario", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -154,22 +160,26 @@ const UserManagement = () => {
             <CardTitle className="flex items-center gap-2">
               <Users size={20} /> Gestión de Usuarios
             </CardTitle>
-            <CardDescription>Invita usuarios a tu empresa y gestiona sus roles y planes</CardDescription>
+            <CardDescription>Crea usuarios para tu empresa y gestiona sus roles y planes</CardDescription>
           </div>
           <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1">
-                <UserPlus size={14} /> Invitar usuario
+                <UserPlus size={14} /> Crear usuario
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Invitar nuevo usuario</DialogTitle>
+                <DialogTitle>Crear nuevo usuario</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <div className="space-y-1">
-                  <Label>Email *</Label>
+                  <Label>Email (será el usuario) *</Label>
                   <Input placeholder="usuario@empresa.com" value={invEmail} onChange={e => setInvEmail(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Contraseña *</Label>
+                  <Input type="password" placeholder="Mínimo 6 caracteres" value={invPassword} onChange={e => setInvPassword(e.target.value)} />
                 </div>
                 <div className="space-y-1">
                   <Label>Nombre completo</Label>
@@ -198,7 +208,7 @@ const UserManagement = () => {
                 <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
                 <Button onClick={handleInvite} disabled={saving}>
                   {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : null}
-                  Enviar invitación
+                  Crear usuario
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -127,26 +127,30 @@ serve(async (req) => {
     if (action === "invite") {
       const email = String(body?.email ?? "").trim().toLowerCase();
       const fullName = String(body?.fullName ?? "").trim();
+      const password = String(body?.password ?? "").trim();
       const planTier = body?.planTier as PlanTier;
       const role = body?.role as AppRole;
 
       if (!email) throw new Error("Email is required");
+      if (!password || password.length < 6) throw new Error("Password must be at least 6 characters");
       if (!validPlanTiers.includes(planTier)) throw new Error("Invalid plan tier");
       if (!validRoles.includes(role)) throw new Error("Invalid role");
 
-      const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(email, {
-        data: { full_name: fullName },
-        redirectTo: body?.redirectTo || undefined,
+      const { data: createData, error: createError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: fullName },
       });
 
-      if (inviteError) throw inviteError;
+      if (createError) throw createError;
 
-      const invitedUserId = inviteData?.user?.id;
-      if (!invitedUserId) throw new Error("Could not resolve invited user id");
+      const newUserId = createData?.user?.id;
+      if (!newUserId) throw new Error("Could not resolve created user id");
 
       const { error: profileUpsertError } = await supabase.from("profiles").upsert(
         {
-          user_id: invitedUserId,
+          user_id: newUserId,
           company_id: companyId,
           full_name: fullName || null,
           plan_tier: planTier,
@@ -159,15 +163,15 @@ serve(async (req) => {
       const { error: deleteRolesError } = await supabase
         .from("user_roles")
         .delete()
-        .eq("user_id", invitedUserId);
+        .eq("user_id", newUserId);
       if (deleteRolesError) throw deleteRolesError;
 
       const { error: insertRoleError } = await supabase
         .from("user_roles")
-        .insert({ user_id: invitedUserId, role });
+        .insert({ user_id: newUserId, role });
       if (insertRoleError) throw insertRoleError;
 
-      return new Response(JSON.stringify({ success: true, invited_user_id: invitedUserId }), {
+      return new Response(JSON.stringify({ success: true, created_user_id: newUserId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
