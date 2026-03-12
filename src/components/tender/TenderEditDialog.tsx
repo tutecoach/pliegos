@@ -142,6 +142,51 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
     }
   };
 
+  const handleReanalyze = async () => {
+    if (!tenderId || !companyId || !user || reanalyzing) return;
+    if (existingDocs.length < 1) {
+      toast({ title: "Sin documentos", description: "Subí al menos un documento antes de re-analizar.", variant: "destructive" });
+      return;
+    }
+    setReanalyzing(true);
+    try {
+      // Find existing report or create new one
+      const { data: existing } = await supabase
+        .from("analysis_reports")
+        .select("id")
+        .eq("tender_id", tenderId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      let reportId: string;
+      if (existing && existing.length > 0) {
+        reportId = existing[0].id;
+        await supabase.from("analysis_reports").update({ status: "processing", report_data: null } as any).eq("id", reportId);
+      } else {
+        const { data: newReport, error } = await supabase.from("analysis_reports").insert({
+          tender_id: tenderId,
+          company_id: companyId,
+          created_by: user.id,
+          status: "processing",
+        }).select("id").single();
+        if (error) throw error;
+        reportId = newReport.id;
+      }
+
+      await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderId);
+
+      const { error } = await supabase.functions.invoke("analyze-tender", { body: { reportId } });
+      if (error) throw error;
+
+      toast({ title: "¡Re-análisis completado!", description: "El informe se ha actualizado con los nuevos documentos." });
+      onSaved();
+    } catch (err: any) {
+      toast({ title: "Error en el re-análisis", description: err.message, variant: "destructive" });
+    } finally {
+      setReanalyzing(false);
+    }
+  };
+
   const formatSize = (bytes: number | null) => {
     if (!bytes) return "—";
     if (bytes < 1024) return `${bytes} B`;
