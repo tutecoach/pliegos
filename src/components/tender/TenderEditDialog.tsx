@@ -82,6 +82,7 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
       setGarantiaDef(t.garantia_definitiva ? String(t.garantia_definitiva) : "");
       setClasificacionReq(t.clasificacion_requerida || "");
       setValorEstimado(t.valor_estimado ? String(t.valor_estimado) : "");
+      setCompanyId(t.company_id);
     }
 
     setExistingDocs(docsRes.data || []);
