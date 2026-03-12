@@ -484,7 +484,7 @@ ${companyContext}`;
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
       if (supabaseUrl && supabaseKey) {
         const adminClient = createClient(supabaseUrl, supabaseKey);
-        const updates: Promise<unknown>[] = [];
+        const updates = [];
 
         if (reportId) {
           updates.push(
