@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import AnalysisReport from "@/components/tender/AnalysisReport";
 import EconomicSimulator from "@/components/tender/EconomicSimulator";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Loader2, ArrowLeft, BookOpen, Calculator, Download } from "lucide-react";
+import { Loader2, ArrowLeft, BookOpen, Calculator, Download, FileText as FileTextIcon } from "lucide-react";
+import { exportReportAsWord, exportReportAsPdf } from "@/lib/report-export";
+import { toast } from "@/hooks/use-toast";
 
 const ReportView = () => {
   const { user } = useAuth();
@@ -56,6 +58,19 @@ const ReportView = () => {
             <p className="text-sm text-muted-foreground">{tender.contracting_entity || "Sin entidad"}</p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {reportData && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => exportReportAsWord(reportData, tender.title)}>
+                  <FileTextIcon size={16} className="mr-2" />Word
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => {
+                  const ok = exportReportAsPdf(reportData, tender.title);
+                  if (!ok) toast({ title: "Permite ventanas emergentes para exportar PDF", variant: "destructive" });
+                }}>
+                  <Download size={16} className="mr-2" />PDF
+                </Button>
+              </>
+            )}
             <Button variant="outline" size="sm" onClick={() => setShowSimulator(!showSimulator)}>
               <Calculator size={16} className="mr-2" />Simulador
             </Button>
