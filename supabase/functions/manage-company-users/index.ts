@@ -29,10 +29,10 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabasePublishableKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const anonClient = createClient(supabaseUrl, supabasePublishableKey);
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey);
 
     const token = authHeader.replace("Bearer ", "");
     const {
