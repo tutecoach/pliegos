@@ -83,8 +83,12 @@ const UserManagement = () => {
   }, [user, loadUsers]);
 
   const handleInvite = async () => {
-    if (!invEmail.trim()) {
-      toast({ title: "El email es obligatorio", variant: "destructive" });
+    if (!invEmail.trim() || !invPassword.trim()) {
+      toast({ title: "Email y contraseña son obligatorios", variant: "destructive" });
+      return;
+    }
+    if (invPassword.length < 6) {
+      toast({ title: "La contraseña debe tener al menos 6 caracteres", variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -93,19 +97,20 @@ const UserManagement = () => {
         action: "invite",
         email: invEmail,
         fullName: invName,
+        password: invPassword,
         planTier: invPlan,
         role: invRole,
-        redirectTo: `${window.location.origin}/login`,
       });
-      toast({ title: "Invitación enviada" });
+      toast({ title: "Usuario creado exitosamente", description: `Se creó la cuenta para ${invEmail}` });
       setInviteOpen(false);
       setInvEmail("");
       setInvName("");
+      setInvPassword("");
       setInvPlan("starter");
       setInvRole("user");
       loadUsers();
     } catch (err: any) {
-      toast({ title: "Error al invitar", description: err.message, variant: "destructive" });
+      toast({ title: "Error al crear usuario", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
