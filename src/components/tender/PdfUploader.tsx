@@ -24,14 +24,33 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
 
   const MAX_FILE_SIZE_BYTES = 60 * 1024 * 1024;
 
+  const ALLOWED_TYPES = [
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ];
+  const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".xlsx"];
+
+  const isAllowedFile = (f: File) => {
+    const ext = f.name.toLowerCase().slice(f.name.lastIndexOf("."));
+    return ALLOWED_TYPES.includes(f.type) || ALLOWED_EXTENSIONS.includes(ext);
+  };
+
+  const getMimeType = (f: File) => {
+    const ext = f.name.toLowerCase().slice(f.name.lastIndexOf("."));
+    if (ext === ".docx" || f.type.includes("wordprocessingml")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (ext === ".xlsx" || f.type.includes("spreadsheetml")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    return "application/pdf";
+  };
+
   const addFiles = useCallback((newFiles: File[]) => {
-    const pdfs = newFiles.filter((f) => f.type === "application/pdf");
-    if (pdfs.length !== newFiles.length) {
-      toast({ title: "Solo se permiten archivos PDF", variant: "destructive" });
+    const valid = newFiles.filter(isAllowedFile);
+    if (valid.length !== newFiles.length) {
+      toast({ title: "Solo se permiten archivos PDF, DOCX y XLSX", variant: "destructive" });
     }
 
-    const validBySize = pdfs.filter((f) => f.size <= MAX_FILE_SIZE_BYTES);
-    const oversized = pdfs.filter((f) => f.size > MAX_FILE_SIZE_BYTES);
+    const validBySize = valid.filter((f) => f.size <= MAX_FILE_SIZE_BYTES);
+    const oversized = valid.filter((f) => f.size > MAX_FILE_SIZE_BYTES);
 
     if (oversized.length > 0) {
       toast({
@@ -101,7 +120,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
         // Upload to storage
         const { error: uploadError } = await supabase.storage
           .from("tender-documents")
-          .upload(filePath, item.file, { contentType: "application/pdf" });
+          .upload(filePath, item.file, { contentType: getMimeType(item.file) });
 
         if (uploadError) throw uploadError;
 
@@ -117,7 +136,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
             file_name: item.file.name,
             file_path: filePath,
             file_size: item.file.size,
-            mime_type: "application/pdf",
+            mime_type: getMimeType(item.file),
             uploaded_by: (await supabase.auth.getUser()).data.user?.id,
           })
           .select("id")
@@ -168,17 +187,17 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
         <input
           id="pdf-input"
           type="file"
-          accept=".pdf,application/pdf"
+          accept=".pdf,.docx,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           multiple
           className="hidden"
           onChange={handleFileInput}
         />
         <Upload size={40} className={`mx-auto mb-3 ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
         <p className="font-medium text-foreground">
-          {isDragOver ? "Suelta los archivos aquí" : "Arrastra y suelta tus PDFs aquí"}
+          {isDragOver ? "Suelta los archivos aquí" : "Arrastra y suelta tus documentos aquí"}
         </p>
         <p className="text-sm text-muted-foreground mt-1">
-          o haz clic para seleccionar · Máximo 60MB por archivo
+          PDF, DOCX, XLSX · Máximo 60MB por archivo
         </p>
       </div>
 
