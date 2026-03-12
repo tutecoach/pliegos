@@ -187,17 +187,17 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
         <input
           id="pdf-input"
           type="file"
-          accept=".pdf,application/pdf"
+          accept=".pdf,.docx,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           multiple
           className="hidden"
           onChange={handleFileInput}
         />
         <Upload size={40} className={`mx-auto mb-3 ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
         <p className="font-medium text-foreground">
-          {isDragOver ? "Suelta los archivos aquí" : "Arrastra y suelta tus PDFs aquí"}
+          {isDragOver ? "Suelta los archivos aquí" : "Arrastra y suelta tus documentos aquí"}
         </p>
         <p className="text-sm text-muted-foreground mt-1">
-          o haz clic para seleccionar · Máximo 60MB por archivo
+          PDF, DOCX, XLSX · Máximo 60MB por archivo
         </p>
       </div>
 
