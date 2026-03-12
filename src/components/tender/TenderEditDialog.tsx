@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,8 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from "@/components/ui/sheet";
 import PdfUploader from "@/components/tender/PdfUploader";
-import { Loader2, Save, FileText, Trash2 } from "lucide-react";
+import { Loader2, Save, FileText, Trash2, Sparkles } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 const SECTORES = [
   "Obras Civiles", "Energía", "Agua y Saneamiento", "Tecnología",
@@ -36,11 +38,14 @@ interface ExistingDoc {
 }
 
 const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditDialogProps) => {
+  const { user } = useAuth();
   const { currencyOption } = useCurrency();
   const sym = currencyOption.symbol;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [companyId, setCompanyId] = useState<string | null>(null);
   const [existingDocs, setExistingDocs] = useState<ExistingDoc[]>([]);
   const [deletingDoc, setDeletingDoc] = useState<string | null>(null);
 
@@ -77,6 +82,7 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
       setGarantiaDef(t.garantia_definitiva ? String(t.garantia_definitiva) : "");
       setClasificacionReq(t.clasificacion_requerida || "");
       setValorEstimado(t.valor_estimado ? String(t.valor_estimado) : "");
+      setCompanyId(t.company_id);
     }
 
     setExistingDocs(docsRes.data || []);
@@ -133,6 +139,51 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
       toast({ title: "Error al eliminar documento", description: err.message, variant: "destructive" });
     } finally {
       setDeletingDoc(null);
+    }
+  };
+
+  const handleReanalyze = async () => {
+    if (!tenderId || !companyId || !user || reanalyzing) return;
+    if (existingDocs.length < 1) {
+      toast({ title: "Sin documentos", description: "Subí al menos un documento antes de re-analizar.", variant: "destructive" });
+      return;
+    }
+    setReanalyzing(true);
+    try {
+      // Find existing report or create new one
+      const { data: existing } = await supabase
+        .from("analysis_reports")
+        .select("id")
+        .eq("tender_id", tenderId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      let reportId: string;
+      if (existing && existing.length > 0) {
+        reportId = existing[0].id;
+        await supabase.from("analysis_reports").update({ status: "processing", report_data: null } as any).eq("id", reportId);
+      } else {
+        const { data: newReport, error } = await supabase.from("analysis_reports").insert({
+          tender_id: tenderId,
+          company_id: companyId,
+          created_by: user.id,
+          status: "processing",
+        }).select("id").single();
+        if (error) throw error;
+        reportId = newReport.id;
+      }
+
+      await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderId);
+
+      const { error } = await supabase.functions.invoke("analyze-tender", { body: { reportId } });
+      if (error) throw error;
+
+      toast({ title: "¡Re-análisis completado!", description: "El informe se ha actualizado con los nuevos documentos." });
+      onSaved();
+    } catch (err: any) {
+      toast({ title: "Error en el re-análisis", description: err.message, variant: "destructive" });
+    } finally {
+      setReanalyzing(false);
     }
   };
 
@@ -241,6 +292,24 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
                     }}
                   />
                 </div>
+              </div>
+
+              {/* Re-analyze button */}
+              <Separator />
+              <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold">Re-analizar con documentación actualizada</p>
+                  <p className="text-xs text-muted-foreground">
+                    Ejecuta nuevamente el motor IA de 4 capas considerando todos los documentos actuales. El informe anterior será reemplazado.
+                  </p>
+                </div>
+                <Button onClick={handleReanalyze} disabled={reanalyzing || existingDocs.length < 1} className="w-full">
+                  {reanalyzing ? (
+                    <><Loader2 size={16} className="animate-spin mr-2" />Re-analizando...</>
+                  ) : (
+                    <><Sparkles size={16} className="mr-2" />Re-analizar ({existingDocs.length} documento{existingDocs.length !== 1 ? "s" : ""})</>
+                  )}
+                </Button>
               </div>
             </TabsContent>
           </Tabs>
