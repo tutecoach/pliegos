@@ -135,9 +135,12 @@ const UserManagement = () => {
       loadUsers();
     } catch (err: any) {
       const message = String(err?.message || "Error desconocido");
-      const friendlyMessage = message.includes("already been registered")
-        ? "Ese email ya existe. Podés usar otro email o editar el usuario existente."
-        : message;
+      const friendlyMessage =
+        message.includes("ya pertenece a otra empresa")
+          ? "Ese email ya está asociado a otra empresa. Usá otro email para crear este usuario."
+          : message.includes("already been registered") || message.includes("email_exists")
+            ? "Ese email ya existe. Podés usar otro email o editar el usuario existente."
+            : message;
       toast({ title: "Error al crear usuario", description: friendlyMessage, variant: "destructive" });
     } finally {
       setSaving(false);
