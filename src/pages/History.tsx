@@ -6,8 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Search, FileText, Calendar, Loader2, ExternalLink } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { Search, FileText, Calendar, Loader2, ExternalLink, RotateCcw, Trash2 } from "lucide-react";
 
 const History = () => {
   const { user } = useAuth();
@@ -15,24 +20,87 @@ const History = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sectorFilter, setSectorFilter] = useState("all");
+  const [retrying, setRetrying] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [companyId, setCompanyId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadTenders = async () => {
     if (!user) return;
-    const load = async () => {
-      const { data: profile } = await supabase.from("profiles").select("company_id").eq("user_id", user.id).single();
-      if (!profile?.company_id) { setLoading(false); return; }
+    const { data: profile } = await supabase.from("profiles").select("company_id").eq("user_id", user.id).single();
+    if (!profile?.company_id) { setLoading(false); return; }
+    setCompanyId(profile.company_id);
 
-      const { data } = await supabase
-        .from("tenders")
-        .select("id, title, contracting_entity, contract_amount, sector, status, created_at, submission_deadline")
-        .eq("company_id", profile.company_id)
-        .order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("tenders")
+      .select("id, title, contracting_entity, contract_amount, sector, status, created_at, submission_deadline")
+      .eq("company_id", profile.company_id)
+      .order("created_at", { ascending: false });
 
-      setTenders(data || []);
-      setLoading(false);
-    };
-    load();
-  }, [user]);
+    setTenders(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadTenders(); }, [user]);
+
+  const handleRetry = async (e: React.MouseEvent, tenderId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setRetrying(tenderId);
+    try {
+      // Find or create an analysis report for this tender
+      const { data: existing } = await supabase
+        .from("analysis_reports")
+        .select("id")
+        .eq("tender_id", tenderId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      let reportId: string;
+      if (existing && existing.length > 0) {
+        reportId = existing[0].id;
+        // Reset status to processing
+        await supabase.from("analysis_reports").update({ status: "processing", report_data: null } as any).eq("id", reportId);
+      } else {
+        const { data: newReport, error } = await supabase.from("analysis_reports").insert({
+          tender_id: tenderId,
+          company_id: companyId!,
+          created_by: user!.id,
+          status: "processing",
+        }).select("id").single();
+        if (error) throw error;
+        reportId = newReport.id;
+      }
+
+      await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderId);
+
+      const { error } = await supabase.functions.invoke("analyze-tender", { body: { reportId } });
+      if (error) throw error;
+
+      toast({ title: "Análisis reiniciado", description: "El análisis se ha relanzado correctamente." });
+      await loadTenders();
+    } catch (err: any) {
+      toast({ title: "Error al reintentar", description: err.message, variant: "destructive" });
+    } finally {
+      setRetrying(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      // Soft delete tender
+      await supabase.from("tenders").update({ deleted_at: new Date().toISOString() }).eq("id", deleteTarget.id);
+      setTenders(prev => prev.filter(t => t.id !== deleteTarget.id));
+      toast({ title: "Licitación eliminada", description: `"${deleteTarget.title}" ha sido eliminada.` });
+    } catch (err: any) {
+      toast({ title: "Error al eliminar", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   const sectors = [...new Set(tenders.map(t => t.sector).filter(Boolean))];
 
@@ -46,9 +114,12 @@ const History = () => {
     switch (status) {
       case "completed": return <Badge className="bg-green-100 text-green-800">Completado</Badge>;
       case "processing": return <Badge className="bg-yellow-100 text-yellow-800">Procesando</Badge>;
+      case "error": return <Badge variant="destructive">Error</Badge>;
       default: return <Badge variant="secondary">Pendiente</Badge>;
     }
   };
+
+  const canRetry = (status: string) => status === "pending" || status === "error";
 
   return (
     <DashboardLayout>
@@ -95,11 +166,31 @@ const History = () => {
                         </span>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       {t.contract_amount && (
-                        <p className="font-semibold text-primary">{Number(t.contract_amount).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</p>
+                        <p className="font-semibold text-primary mr-2">{Number(t.contract_amount).toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</p>
                       )}
-                      <ExternalLink size={14} className="text-muted-foreground ml-auto mt-2" />
+                      {canRetry(t.status) && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          title="Reintentar análisis"
+                          disabled={retrying === t.id}
+                          onClick={(e) => handleRetry(e, t.id)}
+                        >
+                          {retrying === t.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        title="Eliminar licitación"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget({ id: t.id, title: t.title }); }}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                      <ExternalLink size={14} className="text-muted-foreground" />
                     </div>
                   </div>
                 </div>
@@ -108,6 +199,24 @@ const History = () => {
           </div>
         )}
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar licitación?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará <strong>"{deleteTarget?.title}"</strong> y todos sus datos asociados. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };
