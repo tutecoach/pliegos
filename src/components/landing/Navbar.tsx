@@ -19,7 +19,7 @@ const Navbar = () => {
             { label: "Plans", href: "#pricing" },
           ],
           login: "Log in",
-          start: "Get started",
+          start: "Request Demo",
         }
       : {
           links: [
