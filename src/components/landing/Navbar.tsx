@@ -53,14 +53,14 @@ const Navbar = () => {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <Button size="sm" asChild>
+              <Link to="/request-demo">{copy.start}</Link>
+            </Button>
             <Button variant="outline" size="sm" onClick={toggleLanguage}>
               {language.toUpperCase()}
             </Button>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/login">{copy.login}</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to="/register">{copy.start}</Link>
             </Button>
           </div>
 
