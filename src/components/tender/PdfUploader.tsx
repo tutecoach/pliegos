@@ -91,7 +91,12 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
       );
 
       try {
-        const filePath = `${tenderId}/${Date.now()}_${item.file.name}`;
+        // Sanitize filename: remove special chars, replace spaces with underscores
+        const sanitizedName = item.file.name
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove accents
+          .replace(/[^a-zA-Z0-9._-]/g, "_") // replace special chars
+          .replace(/_+/g, "_"); // collapse multiple underscores
+        const filePath = `${tenderId}/${Date.now()}_${sanitizedName}`;
 
         // Upload to storage
         const { error: uploadError } = await supabase.storage
