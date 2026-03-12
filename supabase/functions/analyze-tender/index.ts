@@ -27,6 +27,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   let reportId: string | null = null;
+  let tenderIdForStatus: string | null = null;
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -59,6 +60,9 @@ serve(async (req) => {
       .eq("id", reportId)
       .single();
     if (reportError || !report) throw new Error("Report not found");
+
+    tenderIdForStatus = report.tender_id;
+    await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderIdForStatus);
 
     // Get company data for matching (CAPA 3)
     const { data: company } = await supabase
