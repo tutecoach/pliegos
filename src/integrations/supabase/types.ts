@@ -302,6 +302,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          plan_tier: Database["public"]["Enums"]["plan_tier"]
           updated_at: string
           user_id: string
         }
@@ -311,6 +312,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          plan_tier?: Database["public"]["Enums"]["plan_tier"]
           updated_at?: string
           user_id: string
         }
@@ -320,6 +322,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          plan_tier?: Database["public"]["Enums"]["plan_tier"]
           updated_at?: string
           user_id?: string
         }
@@ -373,6 +376,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscription_plans: {
+        Row: {
+          created_at: string
+          description: string
+          display_name: string
+          excluded_features: string[]
+          features: string[]
+          highlighted: boolean
+          id: string
+          is_published: boolean
+          sort_order: number
+          tier: Database["public"]["Enums"]["plan_tier"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          display_name: string
+          excluded_features?: string[]
+          features?: string[]
+          highlighted?: boolean
+          id?: string
+          is_published?: boolean
+          sort_order?: number
+          tier: Database["public"]["Enums"]["plan_tier"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          display_name?: string
+          excluded_features?: string[]
+          features?: string[]
+          highlighted?: boolean
+          id?: string
+          is_published?: boolean
+          sort_order?: number
+          tier?: Database["public"]["Enums"]["plan_tier"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       technical_memories: {
         Row: {
@@ -831,6 +879,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      plan_tier: "starter" | "professional" | "enterprise"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -959,6 +1008,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      plan_tier: ["starter", "professional", "enterprise"],
     },
   },
 } as const

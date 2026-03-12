@@ -46,6 +46,8 @@ const NewAnalysis = () => {
   const [tenderId, setTenderId] = useState<string | null>(null);
   const [reportData, setReportData] = useState<any>(null);
   const [showSimulator, setShowSimulator] = useState(false);
+  const [uploadedDocsCount, setUploadedDocsCount] = useState(0);
+  const [startingAnalysis, setStartingAnalysis] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -99,6 +101,7 @@ const NewAnalysis = () => {
 
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
     setTenderId(tender.id);
+    setUploadedDocsCount(0);
     setStep("upload");
   };
 

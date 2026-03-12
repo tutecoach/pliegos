@@ -3,16 +3,36 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import Logo from "./Logo";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
+  const { language, setLanguage } = useLanguage();
 
-  const links = [
-    { label: "Funcionalidades", href: "#features" },
-    { label: "Sectores", href: "#sectors" },
-    { label: "Beneficios", href: "#benefits" },
-    { label: "Planes", href: "#pricing" },
-  ];
+  const copy =
+    language === "en"
+      ? {
+          links: [
+            { label: "Features", href: "#features" },
+            { label: "Sectors", href: "#sectors" },
+            { label: "Benefits", href: "#benefits" },
+            { label: "Plans", href: "#pricing" },
+          ],
+          login: "Log in",
+          start: "Get started",
+        }
+      : {
+          links: [
+            { label: "Funcionalidades", href: "#features" },
+            { label: "Sectores", href: "#sectors" },
+            { label: "Beneficios", href: "#benefits" },
+            { label: "Planes", href: "#pricing" },
+          ],
+          login: "Iniciar sesión",
+          start: "Comenzar",
+        };
+
+  const toggleLanguage = () => setLanguage(language === "es" ? "en" : "es");
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
@@ -21,7 +41,7 @@ const Navbar = () => {
           <Logo size="sm" />
 
           <div className="hidden md:flex items-center gap-8">
-            {links.map((l) => (
+            {copy.links.map((l) => (
               <a
                 key={l.href}
                 href={l.href}
@@ -33,11 +53,14 @@ const Navbar = () => {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={toggleLanguage}>
+              {language.toUpperCase()}
+            </Button>
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/login">Iniciar Sesión</Link>
+              <Link to="/login">{copy.login}</Link>
             </Button>
             <Button size="sm" asChild>
-              <Link to="/register">Comenzar Gratis</Link>
+              <Link to="/register">{copy.start}</Link>
             </Button>
           </div>
 
@@ -49,7 +72,7 @@ const Navbar = () => {
 
       {open && (
         <div className="md:hidden bg-background border-b border-border px-4 pb-4 space-y-3">
-          {links.map((l) => (
+          {copy.links.map((l) => (
             <a
               key={l.href}
               href={l.href}
@@ -59,12 +82,21 @@ const Navbar = () => {
               {l.label}
             </a>
           ))}
-          <div className="flex flex-col gap-2 pt-2">
+          <div className="flex items-center gap-2 pt-2">
+            <Button variant="outline" size="sm" className="w-full" onClick={toggleLanguage}>
+              {language.toUpperCase()}
+            </Button>
+          </div>
+          <div className="flex flex-col gap-2">
             <Button variant="outline" size="sm" asChild>
-              <Link to="/login" onClick={() => setOpen(false)}>Iniciar Sesión</Link>
+              <Link to="/login" onClick={() => setOpen(false)}>
+                {copy.login}
+              </Link>
             </Button>
             <Button size="sm" asChild>
-              <Link to="/register" onClick={() => setOpen(false)}>Comenzar Gratis</Link>
+              <Link to="/register" onClick={() => setOpen(false)}>
+                {copy.start}
+              </Link>
             </Button>
           </div>
         </div>

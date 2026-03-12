@@ -9,62 +9,140 @@ import {
   Calculator,
   BarChart3,
 } from "lucide-react";
-
-const layers = [
-  {
-    layer: "Capa 1",
-    icon: FileSearch,
-    title: "Extracción Estructurada",
-    description: "Identificación automática de secciones, clasificación de cláusulas, detección de fechas críticas y anexos obligatorios.",
-    color: "from-primary to-primary/70",
-  },
-  {
-    layer: "Capa 2",
-    icon: Brain,
-    title: "Clasificación Sectorial",
-    description: "Detección automática del sector (Obras, Energía, Tecnología, Sanidad, etc.) con activación de lógica sectorial específica.",
-    color: "from-accent to-accent/70",
-  },
-  {
-    layer: "Capa 3",
-    icon: Building2,
-    title: "Cruce con Empresa",
-    description: "Matching de experiencia, facturación, equipo técnico y certificaciones. Identifica fortalezas y brechas estratégicas.",
-    color: "from-primary to-accent",
-  },
-  {
-    layer: "Capa 4",
-    icon: Target,
-    title: "Estrategia Competitiva",
-    description: "Optimización de criterios automáticos y subjetivos, estrategia económica, plan de narrativa técnica y mejoras diferenciales.",
-    color: "from-accent to-primary",
-  },
-];
-
-const capabilities = [
-  {
-    icon: Shield,
-    title: "Análisis Jurídico-Técnico",
-    description: "Revisión integral de requisitos administrativos, solvencia y normativa aplicable.",
-  },
-  {
-    icon: Calculator,
-    title: "Simulador de Scoring",
-    description: "Índices IAT (Índice de Adecuación Técnica), IRE (Índice de Riesgo de Exclusión) y PEA (Probabilidad Estimada de Adjudicación) que calculan tu probabilidad real de adjudicación.",
-  },
-  {
-    icon: FileText,
-    title: "Generador de Memoria Técnica",
-    description: "Memorias sectoriales adaptadas al pliego, la empresa y los criterios de puntuación.",
-  },
-  {
-    icon: BarChart3,
-    title: "Simulación Económica",
-    description: "Escenarios de oferta (conservador, moderado, agresivo) con cálculo de baja temeraria.",
-  },
-];
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const FeaturesSection = () => {
+  const { language } = useLanguage();
+
+  const layers =
+    language === "en"
+      ? [
+          {
+            layer: "Layer 1",
+            icon: FileSearch,
+            title: "Structured Extraction",
+            description: "Automatically identifies sections, critical dates, mandatory annexes, and contractual clauses.",
+            color: "from-primary to-primary/70",
+          },
+          {
+            layer: "Layer 2",
+            icon: Brain,
+            title: "Sector Classification",
+            description: "Detects industry context and activates specific logic for that tender domain.",
+            color: "from-accent to-accent/70",
+          },
+          {
+            layer: "Layer 3",
+            icon: Building2,
+            title: "Company Matching",
+            description: "Matches experience, financial profile, team and certifications to detect strengths and gaps.",
+            color: "from-primary to-accent",
+          },
+          {
+            layer: "Layer 4",
+            icon: Target,
+            title: "Competitive Strategy",
+            description: "Optimizes economic and qualitative criteria, narrative strategy and differentiating improvements.",
+            color: "from-accent to-primary",
+          },
+        ]
+      : [
+          {
+            layer: "Capa 1",
+            icon: FileSearch,
+            title: "Extracción Estructurada",
+            description: "Identificación automática de secciones, clasificación de cláusulas, detección de fechas críticas y anexos obligatorios.",
+            color: "from-primary to-primary/70",
+          },
+          {
+            layer: "Capa 2",
+            icon: Brain,
+            title: "Clasificación Sectorial",
+            description: "Detección automática del sector con activación de lógica sectorial específica.",
+            color: "from-accent to-accent/70",
+          },
+          {
+            layer: "Capa 3",
+            icon: Building2,
+            title: "Cruce con Empresa",
+            description: "Matching de experiencia, facturación, equipo técnico y certificaciones para detectar fortalezas y brechas.",
+            color: "from-primary to-accent",
+          },
+          {
+            layer: "Capa 4",
+            icon: Target,
+            title: "Estrategia Competitiva",
+            description: "Optimización de criterios automáticos y subjetivos, estrategia económica y plan técnico diferencial.",
+            color: "from-accent to-primary",
+          },
+        ];
+
+  const capabilities =
+    language === "en"
+      ? [
+          {
+            icon: Shield,
+            title: "Legal-Technical Analysis",
+            description: "Comprehensive review of administrative, technical and compliance requirements.",
+          },
+          {
+            icon: Calculator,
+            title: "Scoring Simulator",
+            description:
+              "IAT (Technical Adequacy Index), IRE (Exclusion Risk Index), and PEA (Estimated Award Probability).",
+          },
+          {
+            icon: FileText,
+            title: "Technical Memory Generator",
+            description: "Sector-adapted technical memory based on tender requirements and company profile.",
+          },
+          {
+            icon: BarChart3,
+            title: "Economic Scenarios",
+            description: "Conservative, balanced and aggressive bid scenarios with low-bid risk validation.",
+          },
+        ]
+      : [
+          {
+            icon: Shield,
+            title: "Análisis Jurídico-Técnico",
+            description: "Revisión integral de requisitos administrativos, solvencia y normativa aplicable.",
+          },
+          {
+            icon: Calculator,
+            title: "Simulador de Scoring",
+            description:
+              "Índices IAT (Índice de Adecuación Técnica), IRE (Índice de Riesgo de Exclusión) y PEA (Probabilidad Estimada de Adjudicación).",
+          },
+          {
+            icon: FileText,
+            title: "Generador de Memoria Técnica",
+            description: "Memorias sectoriales adaptadas al pliego, la empresa y los criterios de puntuación.",
+          },
+          {
+            icon: BarChart3,
+            title: "Simulación Económica",
+            description: "Escenarios de oferta con cálculo de baja temeraria y riesgo estratégico.",
+          },
+        ];
+
+  const heading =
+    language === "en"
+      ? {
+          badge: "Intelligent Architecture",
+          title: "4 layers of deep tender analysis",
+          subtitle: "Not a PDF reader: a strategic committee for legal, technical and economic decisions.",
+          extraTitle: "Additional capabilities",
+          extraSubtitle: "Tools that convert analysis into a competitive edge.",
+        }
+      : {
+          badge: "Arquitectura Inteligente",
+          title: "4 capas de análisis profundo",
+          subtitle: "No es un lector de PDFs. Es un comité evaluador, asesor jurídico, director técnico y analista financiero.",
+          extraTitle: "Capacidades adicionales",
+          extraSubtitle: "Herramientas que transforman análisis en ventaja competitiva.",
+        };
+
   return (
     <section id="features" className="py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -74,17 +152,11 @@ const FeaturesSection = () => {
           viewport={{ once: true }}
           className="text-center mb-16"
         >
-          <span className="text-accent font-medium text-sm uppercase tracking-wider">Arquitectura Inteligente</span>
-          <h2 className="text-3xl sm:text-4xl font-bold mt-3 mb-4">
-            4 capas de análisis profundo
-          </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            No es un lector de PDFs. Es un comité evaluador, asesor jurídico, 
-            director técnico y analista financiero trabajando para ti.
-          </p>
+          <span className="text-accent font-medium text-sm uppercase tracking-wider">{heading.badge}</span>
+          <h2 className="text-3xl sm:text-4xl font-bold mt-3 mb-4">{heading.title}</h2>
+          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">{heading.subtitle}</p>
         </motion.div>
 
-        {/* 4 Layers */}
         <div className="grid sm:grid-cols-2 gap-6 mb-20">
           {layers.map((l, i) => (
             <motion.div
@@ -110,15 +182,14 @@ const FeaturesSection = () => {
           ))}
         </div>
 
-        {/* Additional capabilities */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           className="text-center mb-12"
         >
-          <h3 className="text-2xl font-bold mb-2">Capacidades adicionales</h3>
-          <p className="text-muted-foreground">Herramientas que transforman análisis en ventaja competitiva.</p>
+          <h3 className="text-2xl font-bold mb-2">{heading.extraTitle}</h3>
+          <p className="text-muted-foreground">{heading.extraSubtitle}</p>
         </motion.div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
