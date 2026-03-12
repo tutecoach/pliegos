@@ -120,7 +120,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
         // Upload to storage
         const { error: uploadError } = await supabase.storage
           .from("tender-documents")
-          .upload(filePath, item.file, { contentType: "application/pdf" });
+          .upload(filePath, item.file, { contentType: getMimeType(item.file) });
 
         if (uploadError) throw uploadError;
 
