@@ -293,6 +293,24 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
                   />
                 </div>
               </div>
+
+              {/* Re-analyze button */}
+              <Separator />
+              <div className="p-4 rounded-lg border border-primary/20 bg-primary/5 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold">Re-analizar con documentación actualizada</p>
+                  <p className="text-xs text-muted-foreground">
+                    Ejecuta nuevamente el motor IA de 4 capas considerando todos los documentos actuales. El informe anterior será reemplazado.
+                  </p>
+                </div>
+                <Button onClick={handleReanalyze} disabled={reanalyzing || existingDocs.length < 1} className="w-full">
+                  {reanalyzing ? (
+                    <><Loader2 size={16} className="animate-spin mr-2" />Re-analizando...</>
+                  ) : (
+                    <><Sparkles size={16} className="mr-2" />Re-analizar ({existingDocs.length} documento{existingDocs.length !== 1 ? "s" : ""})</>
+                  )}
+                </Button>
+              </div>
             </TabsContent>
           </Tabs>
         )}
