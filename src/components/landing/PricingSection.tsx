@@ -121,7 +121,7 @@ const PricingSection = () => {
           badge: "Planes",
           title: "Elige el plan que impulsa tu estrategia de licitaciones",
           subtitle: "Compara capacidades por plan. Puedes personalizarlos y publicarlos desde configuración.",
-          cta: "Comenzar",
+          cta: "Solicitar Demo",
           popular: "Más popular",
           withoutPrice: "Precios personalizados disponibles",
         };
