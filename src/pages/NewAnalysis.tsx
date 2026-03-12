@@ -101,6 +101,7 @@ const NewAnalysis = () => {
 
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
     setTenderId(tender.id);
+    setUploadedDocsCount(0);
     setStep("upload");
   };
 
