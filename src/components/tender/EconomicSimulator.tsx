@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calculator, TrendingDown, AlertTriangle, CheckCircle } from "lucide-react";
+import { CurrencyInput } from "@/components/ui/currency-input";
+import { Calculator, AlertTriangle, CheckCircle } from "lucide-react";
 
 interface EconomicSimulatorProps {
   presupuestoBase?: number;
@@ -12,27 +13,23 @@ interface EconomicSimulatorProps {
 }
 
 const EconomicSimulator = ({ presupuestoBase = 100000, criteriosEconomicos = [] }: EconomicSimulatorProps) => {
+  const { formatCurrency } = useCurrency();
   const [bajaPercent, setBajaPercent] = useState(10);
   const [presupuesto, setPresupuesto] = useState(presupuestoBase);
 
   const simulation = useMemo(() => {
     const oferta = presupuesto * (1 - bajaPercent / 100);
-    const umbralTemeraria = presupuesto * 0.75; // 25% baja = temeraria típica
+    const umbralTemeraria = presupuesto * 0.75;
     const esTemeraria = oferta < umbralTemeraria;
-    
-    // Simulate score using linear formula (common in Spanish public procurement)
     const maxEconPoints = criteriosEconomicos.reduce((acc: number, c: any) => acc + (c.ponderacion || 0), 0) || 50;
-    const puntuacionEcon = Math.max(0, (bajaPercent / 30) * maxEconPoints); // Linear up to 30%
+    const puntuacionEcon = Math.max(0, (bajaPercent / 30) * maxEconPoints);
     const puntuacionFinal = Math.min(puntuacionEcon, maxEconPoints);
-    
     const rentabilidad = ((presupuesto - oferta) / presupuesto) * 100;
-    
     let riesgo: "bajo" | "medio" | "alto" | "critico";
     if (bajaPercent < 8) riesgo = "bajo";
     else if (bajaPercent < 15) riesgo = "medio";
     else if (bajaPercent < 25) riesgo = "alto";
     else riesgo = "critico";
-
     return { oferta, esTemeraria, puntuacionFinal, maxEconPoints, rentabilidad, riesgo, umbralTemeraria };
   }, [bajaPercent, presupuesto, criteriosEconomicos]);
 
@@ -57,14 +54,14 @@ const EconomicSimulator = ({ presupuestoBase = 100000, criteriosEconomicos = [] 
       </CardHeader>
       <CardContent className="space-y-6">
         <div>
-          <Label>Presupuesto base de licitación (€)</Label>
-          <Input type="number" value={presupuesto} onChange={e => setPresupuesto(parseFloat(e.target.value) || 0)} className="mt-1" />
+          <Label>Presupuesto base de licitación</Label>
+          <CurrencyInput value={presupuesto.toString()} onChange={v => setPresupuesto(parseFloat(v) || 0)} className="mt-1" />
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-2">
             <Label>Porcentaje de baja: <span className="text-primary font-bold">{bajaPercent}%</span></Label>
-            <span className="text-sm text-muted-foreground">Oferta: {simulation.oferta.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</span>
+            <span className="text-sm text-muted-foreground">Oferta: {formatCurrency(simulation.oferta)}</span>
           </div>
           <Slider value={[bajaPercent]} onValueChange={([v]) => setBajaPercent(v)} min={0} max={40} step={0.5} className="my-4" />
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -73,7 +70,6 @@ const EconomicSimulator = ({ presupuestoBase = 100000, criteriosEconomicos = [] 
           </div>
         </div>
 
-        {/* Results grid */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="bg-muted/50 rounded-lg p-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">Puntuación Económica</p>
@@ -101,12 +97,11 @@ const EconomicSimulator = ({ presupuestoBase = 100000, criteriosEconomicos = [] 
         {simulation.esTemeraria && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">
             <AlertTriangle size={16} className="inline mr-2" />
-            <strong>¡Atención!</strong> La oferta está por debajo del umbral de baja temeraria ({simulation.umbralTemeraria.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}). 
+            <strong>¡Atención!</strong> La oferta está por debajo del umbral de baja temeraria ({formatCurrency(simulation.umbralTemeraria)}). 
             Podría ser rechazada o requerir justificación adicional.
           </div>
         )}
 
-        {/* Quick scenarios */}
         <div>
           <p className="text-sm font-medium mb-3">Escenarios rápidos</p>
           <div className="grid sm:grid-cols-3 gap-3">
