@@ -5,44 +5,105 @@ import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { FolderOpen, FileText, BarChart3, Sparkles, Building2, Clock, Calendar } from "lucide-react";
+import { FolderOpen, FileText, BarChart3, Sparkles, Building2, Clock, Calendar, ArrowRightLeft } from "lucide-react";
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
-  const [profile, setProfile] = useState<{ full_name: string; company_id: string | null } | null>(null);
+  const [profile, setProfile] = useState<{ full_name: string; company_id: string | null; plan_tier: string } | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [stats, setStats] = useState({ projects: 0, tenders: 0, reports: 0 });
   const [recentTenders, setRecentTenders] = useState<any[]>([]);
+  const [allCompanies, setAllCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null);
+
+  const loadDashboardData = async (companyId: string) => {
+    const { data: c } = await supabase.from("companies").select("name").eq("id", companyId).single();
+    if (c) setCompanyName(c.name);
+
+    const [projectsRes, tendersRes, reportsRes, recentRes] = await Promise.all([
+      supabase.from("projects").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+      supabase.from("tenders").select("id", { count: "exact", head: true }).eq("company_id", companyId).is("deleted_at", null),
+      supabase.from("analysis_reports").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+      supabase.from("tenders").select("id, title, sector, status, created_at, contract_amount").eq("company_id", companyId).is("deleted_at", null).order("created_at", { ascending: false }).limit(5),
+    ]);
+    setStats({ projects: projectsRes.count ?? 0, tenders: tendersRes.count ?? 0, reports: reportsRes.count ?? 0 });
+    setRecentTenders(recentRes.data || []);
+  };
+
+  const loadCompanies = async (userId: string) => {
+    const [ucRes, profileRes] = await Promise.all([
+      supabase.from("user_companies").select("company_id").eq("user_id", userId),
+      supabase.from("profiles").select("company_id").eq("user_id", userId).single(),
+    ]);
+    const companyIds = new Set<string>();
+    if (profileRes.data?.company_id) companyIds.add(profileRes.data.company_id);
+    (ucRes.data || []).forEach((uc: any) => companyIds.add(uc.company_id));
+
+    if (companyIds.size > 0) {
+      const { data } = await supabase.from("companies").select("id, name").in("id", Array.from(companyIds));
+      setAllCompanies(data || []);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      const { data: p } = await supabase.from("profiles").select("full_name, company_id").eq("user_id", user.id).single();
+      const { data: p } = await supabase.from("profiles").select("full_name, company_id, plan_tier").eq("user_id", user.id).single();
       setProfile(p);
       if (p?.company_id) {
-        const { data: c } = await supabase.from("companies").select("name").eq("id", p.company_id).single();
-        if (c) setCompanyName(c.name);
-        const [projectsRes, tendersRes, reportsRes, recentRes] = await Promise.all([
-          supabase.from("projects").select("id", { count: "exact", head: true }).eq("company_id", p.company_id),
-          supabase.from("tenders").select("id", { count: "exact", head: true }).eq("company_id", p.company_id),
-          supabase.from("analysis_reports").select("id", { count: "exact", head: true }).eq("company_id", p.company_id),
-          supabase.from("tenders").select("id, title, sector, status, created_at, contract_amount").eq("company_id", p.company_id).order("created_at", { ascending: false }).limit(5),
+        setActiveCompanyId(p.company_id);
+        await Promise.all([
+          loadDashboardData(p.company_id),
+          loadCompanies(user.id),
         ]);
-        setStats({ projects: projectsRes.count ?? 0, tenders: tendersRes.count ?? 0, reports: reportsRes.count ?? 0 });
-        setRecentTenders(recentRes.data || []);
       }
     };
     fetchData();
   }, [user]);
 
+  const handleCompanySwitch = async (newCompanyId: string) => {
+    setActiveCompanyId(newCompanyId);
+    // Update profile so RLS policies work with the new company
+    await supabase.from("profiles").update({ company_id: newCompanyId }).eq("user_id", user!.id);
+    const { data: c } = await supabase.from("companies").select("name").eq("id", newCompanyId).single();
+    if (c) setCompanyName(c.name);
+    await loadDashboardData(newCompanyId);
+  };
+
+  const isEnterprise = profile?.plan_tier === "enterprise";
+  const showCompanySelector = isEnterprise && allCompanies.length > 1;
+
   return (
     <DashboardLayout>
       <div className="p-6 max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-1">Bienvenido, {profile?.full_name || "Usuario"}</h2>
-          <p className="text-muted-foreground">{companyName || "Configura tu perfil de empresa para activar el matching inteligente."}</p>
+        <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <h2 className="text-2xl font-bold mb-1">Bienvenido, {profile?.full_name || "Usuario"}</h2>
+            <p className="text-muted-foreground">{companyName || "Configura tu perfil de empresa para activar el matching inteligente."}</p>
+          </div>
+
+          {showCompanySelector && (
+            <Select value={activeCompanyId || ""} onValueChange={handleCompanySwitch}>
+              <SelectTrigger className="w-[260px]">
+                <div className="flex items-center gap-2">
+                  <ArrowRightLeft size={14} className="text-primary" />
+                  <SelectValue placeholder="Seleccionar empresa" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {allCompanies.map(c => (
+                  <SelectItem key={c.id} value={c.id}>
+                    <div className="flex items-center gap-2">
+                      <Building2 size={14} /> {c.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <div className="grid sm:grid-cols-3 gap-6 mb-8">
