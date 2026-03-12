@@ -215,6 +215,16 @@ const History = () => {
                         {retrying === t.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
                       </Button>
                     )}
+                    {/* Editar licitación */}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      title="Editar datos y documentos"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingTenderId(t.id); }}
+                    >
+                      <Pencil size={14} />
+                    </Button>
+
                     <Button
                       variant="outline"
                       size="icon"
