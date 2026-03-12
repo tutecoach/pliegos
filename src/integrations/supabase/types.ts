@@ -201,6 +201,47 @@ export type Database = {
           },
         ]
       }
+      company_equipment: {
+        Row: {
+          cantidad: number | null
+          company_id: string
+          created_at: string
+          descripcion: string | null
+          estado: string | null
+          id: string
+          nombre: string
+          tipo: string
+        }
+        Insert: {
+          cantidad?: number | null
+          company_id: string
+          created_at?: string
+          descripcion?: string | null
+          estado?: string | null
+          id?: string
+          nombre: string
+          tipo?: string
+        }
+        Update: {
+          cantidad?: number | null
+          company_id?: string
+          created_at?: string
+          descripcion?: string | null
+          estado?: string | null
+          id?: string
+          nombre?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_equipment_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_experience: {
         Row: {
           cliente: string | null
@@ -877,6 +918,41 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_companies: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          role: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          role?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
