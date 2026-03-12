@@ -259,6 +259,13 @@ const History = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TenderEditDialog
+        tenderId={editingTenderId}
+        open={!!editingTenderId}
+        onOpenChange={(open) => { if (!open) setEditingTenderId(null); }}
+        onSaved={() => { setEditingTenderId(null); loadTenders(); }}
+      />
     </DashboardLayout>
   );
 };
