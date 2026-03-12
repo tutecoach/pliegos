@@ -207,6 +207,7 @@ const Settings = () => {
           </Card>
           {/* User Management - only for admins */}
           {isAdmin && <UserManagement />}
+          {isAdmin && <DemoRequestsManagement />}
         </div>
       </div>
     </DashboardLayout>
