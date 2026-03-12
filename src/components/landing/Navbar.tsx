@@ -17,6 +17,7 @@ const Navbar = () => {
             { label: "Sectors", href: "#sectors" },
             { label: "Benefits", href: "#benefits" },
             { label: "Plans", href: "#pricing" },
+            { label: "Contact", href: "#contact" },
           ],
           login: "Log in",
           start: "Request Demo",
