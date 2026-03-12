@@ -28,6 +28,7 @@ const Navbar = () => {
             { label: "Sectores", href: "#sectors" },
             { label: "Beneficios", href: "#benefits" },
             { label: "Planes", href: "#pricing" },
+            { label: "Contacto", href: "#contact" },
           ],
           login: "Iniciar sesión",
           start: "Solicitar Demo",
