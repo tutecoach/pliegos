@@ -352,83 +352,126 @@ ${companyContext}`;
 
     // Store structured data in sub-tables
     const tenderId = report.tender_id;
-    
+
+    // Clean previous generated rows to avoid duplicates on retries
+    await Promise.all([
+      supabase.from("tender_requirements_admin").delete().eq("tender_id", tenderId),
+      supabase.from("tender_requirements_tech").delete().eq("tender_id", tenderId),
+      supabase.from("tender_criteria").delete().eq("tender_id", tenderId),
+      supabase.from("tender_risks").delete().eq("tender_id", tenderId),
+      supabase.from("tender_strategy").delete().eq("tender_id", tenderId),
+      supabase.from("tender_matching").delete().eq("tender_id", tenderId),
+    ]);
+
+    const persistenceOps: Promise<unknown>[] = [];
+
     // Update tender sector
     if (reportData.sector_detectado) {
-      await supabase.from("tenders").update({ sector: reportData.sector_detectado }).eq("id", tenderId);
+      persistenceOps.push(supabase.from("tenders").update({ sector: reportData.sector_detectado }).eq("id", tenderId));
     }
 
     // Save admin requirements
     if (reportData.requisitos_administrativos?.length) {
-      await supabase.from("tender_requirements_admin").insert(
-        reportData.requisitos_administrativos.map((r: any) => ({
-          tender_id: tenderId, descripcion: r.descripcion, obligatorio: r.obligatorio ?? true,
-          normativa_aplicable: r.normativa, riesgo_exclusion: r.riesgo_exclusion || 'medio',
-        }))
+      persistenceOps.push(
+        supabase.from("tender_requirements_admin").insert(
+          reportData.requisitos_administrativos.map((r: any) => ({
+            tender_id: tenderId,
+            descripcion: r.descripcion,
+            obligatorio: r.obligatorio ?? true,
+            normativa_aplicable: r.normativa,
+            riesgo_exclusion: r.riesgo_exclusion || "medio",
+          })),
+        ),
       );
     }
 
     // Save tech requirements
     if (reportData.requisitos_tecnicos?.length) {
-      await supabase.from("tender_requirements_tech").insert(
-        reportData.requisitos_tecnicos.map((r: any) => ({
-          tender_id: tenderId, descripcion: r.descripcion,
-          experiencia_minima: r.experiencia_minima, equipo_minimo: r.equipo_minimo, medios_minimos: r.medios_minimos,
-        }))
+      persistenceOps.push(
+        supabase.from("tender_requirements_tech").insert(
+          reportData.requisitos_tecnicos.map((r: any) => ({
+            tender_id: tenderId,
+            descripcion: r.descripcion,
+            experiencia_minima: r.experiencia_minima,
+            equipo_minimo: r.equipo_minimo,
+            medios_minimos: r.medios_minimos,
+          })),
+        ),
       );
     }
 
     // Save criteria
     if (reportData.criterios_adjudicacion?.length) {
-      await supabase.from("tender_criteria").insert(
-        reportData.criterios_adjudicacion.map((c: any) => ({
-          tender_id: tenderId, tipo: c.tipo, descripcion: c.criterio,
-          ponderacion: c.ponderacion, formula: c.formula,
-        }))
+      persistenceOps.push(
+        supabase.from("tender_criteria").insert(
+          reportData.criterios_adjudicacion.map((c: any) => ({
+            tender_id: tenderId,
+            tipo: c.tipo,
+            descripcion: c.criterio,
+            ponderacion: c.ponderacion,
+            formula: c.formula,
+          })),
+        ),
       );
     }
 
     // Save risks
     if (reportData.riesgos?.length) {
-      await supabase.from("tender_risks").insert(
-        reportData.riesgos.map((r: any) => ({
-          tender_id: tenderId, tipo: r.tipo, descripcion: r.descripcion,
-          nivel: r.nivel, mitigacion: r.mitigacion,
-        }))
+      persistenceOps.push(
+        supabase.from("tender_risks").insert(
+          reportData.riesgos.map((r: any) => ({
+            tender_id: tenderId,
+            tipo: r.tipo,
+            descripcion: r.descripcion,
+            nivel: r.nivel,
+            mitigacion: r.mitigacion,
+          })),
+        ),
       );
     }
 
     // Save strategy
     if (reportData.estrategia) {
-      await supabase.from("tender_strategy").insert({
-        tender_id: tenderId,
-        estrategia_economica: reportData.estrategia.economica,
-        estrategia_tecnica: reportData.estrategia.tecnica,
-        mejoras_propuestas: reportData.estrategia.mejoras_propuestas,
-        narrativa_recomendada: reportData.estrategia.narrativa_recomendada,
-      });
+      persistenceOps.push(
+        supabase.from("tender_strategy").insert({
+          tender_id: tenderId,
+          estrategia_economica: reportData.estrategia.economica,
+          estrategia_tecnica: reportData.estrategia.tecnica,
+          mejoras_propuestas: reportData.estrategia.mejoras_propuestas,
+          narrativa_recomendada: reportData.estrategia.narrativa_recomendada,
+        }),
+      );
     }
 
     // Save matching
     if (reportData.comparativa_empresa && company) {
-      await supabase.from("tender_matching").insert({
-        tender_id: tenderId, company_id: report.company_id,
-        cumplimiento: reportData.comparativa_empresa.cumplimiento,
-        iat_score: reportData.scoring?.iat || 0,
-        ire_score: reportData.scoring?.ire || 0,
-        pea_score: reportData.scoring?.pea || 0,
-        riesgo: reportData.scoring?.recomendacion_presentarse,
-        observaciones: reportData.comparativa_empresa.observaciones,
-        acciones_recomendadas: reportData.comparativa_empresa.acciones_recomendadas,
-        fortalezas: reportData.comparativa_empresa.fortalezas || [],
-        brechas: reportData.comparativa_empresa.brechas || [],
-      });
+      persistenceOps.push(
+        supabase.from("tender_matching").insert({
+          tender_id: tenderId,
+          company_id: report.company_id,
+          cumplimiento: reportData.comparativa_empresa.cumplimiento,
+          iat_score: reportData.scoring?.iat || 0,
+          ire_score: reportData.scoring?.ire || 0,
+          pea_score: reportData.scoring?.pea || 0,
+          riesgo: reportData.scoring?.recomendacion_presentarse,
+          observaciones: reportData.comparativa_empresa.observaciones,
+          acciones_recomendadas: reportData.comparativa_empresa.acciones_recomendadas,
+          fortalezas: reportData.comparativa_empresa.fortalezas || [],
+          brechas: reportData.comparativa_empresa.brechas || [],
+        }),
+      );
     }
 
-    // Update report
-    await supabase.from("analysis_reports")
-      .update({ status: "completed", report_data: reportData, updated_at: new Date().toISOString() })
-      .eq("id", reportId);
+    await Promise.all(persistenceOps);
+
+    // Update report and tender status
+    await Promise.all([
+      supabase
+        .from("analysis_reports")
+        .update({ status: "completed", report_data: reportData, updated_at: new Date().toISOString() })
+        .eq("id", reportId),
+      supabase.from("tenders").update({ status: "completed" }).eq("id", tenderId),
+    ]);
 
     return new Response(JSON.stringify({ success: true, report_data: reportData }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
