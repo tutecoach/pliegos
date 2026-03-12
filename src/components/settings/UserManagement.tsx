@@ -160,22 +160,26 @@ const UserManagement = () => {
             <CardTitle className="flex items-center gap-2">
               <Users size={20} /> Gestión de Usuarios
             </CardTitle>
-            <CardDescription>Invita usuarios a tu empresa y gestiona sus roles y planes</CardDescription>
+            <CardDescription>Crea usuarios para tu empresa y gestiona sus roles y planes</CardDescription>
           </div>
           <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="gap-1">
-                <UserPlus size={14} /> Invitar usuario
+                <UserPlus size={14} /> Crear usuario
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Invitar nuevo usuario</DialogTitle>
+                <DialogTitle>Crear nuevo usuario</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-2">
                 <div className="space-y-1">
-                  <Label>Email *</Label>
+                  <Label>Email (será el usuario) *</Label>
                   <Input placeholder="usuario@empresa.com" value={invEmail} onChange={e => setInvEmail(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Contraseña *</Label>
+                  <Input type="password" placeholder="Mínimo 6 caracteres" value={invPassword} onChange={e => setInvPassword(e.target.value)} />
                 </div>
                 <div className="space-y-1">
                   <Label>Nombre completo</Label>
