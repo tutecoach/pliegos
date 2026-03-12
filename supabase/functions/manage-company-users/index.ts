@@ -13,6 +13,13 @@ type AppRole = "admin" | "user";
 const validPlanTiers: PlanTier[] = ["starter", "professional", "enterprise"];
 const validRoles: AppRole[] = ["admin", "user"];
 
+function jsonResponse(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -20,12 +27,7 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "No authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return jsonResponse({ error: "No authorization header" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -40,24 +42,14 @@ serve(async (req) => {
       error: authError,
     } = await anonClient.auth.getUser(token);
 
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (authError || !user) return jsonResponse({ error: "Unauthorized" }, 401);
 
     const { data: isAdmin, error: roleError } = await supabase.rpc("has_role", {
       _user_id: user.id,
       _role: "admin",
     });
 
-    if (roleError || !isAdmin) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (roleError || !isAdmin) return jsonResponse({ error: "Forbidden" }, 403);
 
     const { data: requesterProfile, error: profileError } = await supabase
       .from("profiles")
@@ -66,20 +58,18 @@ serve(async (req) => {
       .single();
 
     if (profileError || !requesterProfile?.company_id) {
-      return new Response(JSON.stringify({ error: "Admin profile not configured" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Admin profile not configured" }, 400);
     }
 
     const companyId = requesterProfile.company_id as string;
     const body = await req.json();
     const action = body?.action as string | undefined;
 
+    // ─── LIST ───
     if (action === "list") {
       const { data: profiles, error: listError } = await supabase
         .from("profiles")
-        .select("user_id, full_name, plan_tier, created_at")
+        .select("user_id, full_name, plan_tier, created_at, demo_expires_at")
         .eq("company_id", companyId)
         .order("created_at", { ascending: true });
 
@@ -93,7 +83,6 @@ serve(async (req) => {
           .from("user_roles")
           .select("user_id, role")
           .in("user_id", userIds);
-
         if (rolesError) throw rolesError;
 
         for (const row of rolesRows ?? []) {
@@ -115,15 +104,15 @@ serve(async (req) => {
             plan_tier: profile.plan_tier,
             role: rolesMap.get(profile.user_id) ?? "user",
             created_at: profile.created_at,
+            demo_expires_at: (profile as any).demo_expires_at ?? null,
           };
         })
       );
 
-      return new Response(JSON.stringify({ users: usersWithEmail }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ users: usersWithEmail });
     }
 
+    // ─── INVITE (create user in admin's company) ───
     if (action === "invite") {
       const email = String(body?.email ?? "").trim().toLowerCase();
       const fullName = String(body?.fullName ?? "").trim();
@@ -155,9 +144,7 @@ serve(async (req) => {
         if (listUsersError) throw listUsersError;
 
         const existingUser = listedUsers.users.find((u) => u.email?.toLowerCase() === email);
-        if (!existingUser?.id) {
-          throw new Error("User exists but could not be resolved");
-        }
+        if (!existingUser?.id) throw new Error("User exists but could not be resolved");
 
         targetUserId = existingUser.id;
 
@@ -166,14 +153,10 @@ serve(async (req) => {
           .select("company_id")
           .eq("user_id", targetUserId)
           .maybeSingle();
-
         if (existingProfileError) throw existingProfileError;
 
         if (existingProfile?.company_id && existingProfile.company_id !== companyId) {
-          return new Response(JSON.stringify({ error: "El email ya pertenece a otra empresa" }), {
-            status: 409,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return jsonResponse({ error: "El email ya pertenece a otra empresa" }, 409);
         }
 
         const { error: updateAuthUserError } = await supabase.auth.admin.updateUserById(targetUserId, {
@@ -196,7 +179,6 @@ serve(async (req) => {
         },
         { onConflict: "user_id" }
       );
-
       if (profileUpsertError) throw profileUpsertError;
 
       const { error: deleteRolesError } = await supabase
@@ -210,11 +192,114 @@ serve(async (req) => {
         .insert({ user_id: targetUserId, role });
       if (insertRoleError) throw insertRoleError;
 
-      return new Response(JSON.stringify({ success: true, created_user_id: targetUserId }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return jsonResponse({ success: true, created_user_id: targetUserId });
+    }
+
+    // ─── CREATE DEMO USER ───
+    if (action === "create-demo-user") {
+      const email = String(body?.email ?? "").trim().toLowerCase();
+      const fullName = String(body?.fullName ?? "").trim();
+      const companyName = String(body?.companyName ?? "").trim();
+      const password = String(body?.password ?? "").trim();
+      const demoDays = Number(body?.demoDays) || 30;
+      const demoRequestId = String(body?.demoRequestId ?? "").trim();
+
+      if (!email) throw new Error("Email is required");
+      if (!password || password.length < 6) throw new Error("Password must be at least 6 characters");
+      if (!companyName) throw new Error("Company name is required");
+
+      // 1. Create the company for the demo user
+      const { data: newCompany, error: companyError } = await supabase
+        .from("companies")
+        .insert({ name: companyName })
+        .select("id")
+        .single();
+      if (companyError) throw companyError;
+
+      const demoCompanyId = newCompany.id;
+
+      // 2. Create user in auth
+      let targetUserId: string | null = null;
+
+      const { data: createData, error: createError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: fullName },
+      });
+
+      if (createError) {
+        if (createError.code !== "email_exists") throw createError;
+
+        // User exists — find them
+        const { data: listedUsers, error: listUsersError } = await supabase.auth.admin.listUsers({
+          page: 1,
+          perPage: 1000,
+        });
+        if (listUsersError) throw listUsersError;
+
+        const existingUser = listedUsers.users.find((u) => u.email?.toLowerCase() === email);
+        if (!existingUser?.id) throw new Error("User exists but could not be resolved");
+        targetUserId = existingUser.id;
+
+        // Update password
+        const { error: updateErr } = await supabase.auth.admin.updateUserById(targetUserId, {
+          password,
+          user_metadata: { full_name: fullName || existingUser.user_metadata?.full_name || "" },
+        });
+        if (updateErr) throw updateErr;
+      } else {
+        targetUserId = createData?.user?.id ?? null;
+      }
+
+      if (!targetUserId) throw new Error("Could not resolve created user id");
+
+      // 3. Calculate expiration
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + demoDays);
+
+      // 4. Upsert profile with demo_expires_at
+      const { error: profileError2 } = await supabase.from("profiles").upsert(
+        {
+          user_id: targetUserId,
+          company_id: demoCompanyId,
+          full_name: fullName || null,
+          plan_tier: "professional" as PlanTier,
+          demo_expires_at: expiresAt.toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+      if (profileError2) throw profileError2;
+
+      // 5. Set role as admin of their demo company
+      const { error: deleteRolesError } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", targetUserId);
+      if (deleteRolesError) throw deleteRolesError;
+
+      const { error: insertRoleError } = await supabase
+        .from("user_roles")
+        .insert({ user_id: targetUserId, role: "admin" as AppRole });
+      if (insertRoleError) throw insertRoleError;
+
+      // 6. Update demo request status
+      if (demoRequestId) {
+        await supabase
+          .from("demo_requests")
+          .update({ status: "approved" })
+          .eq("id", demoRequestId);
+      }
+
+      return jsonResponse({
+        success: true,
+        created_user_id: targetUserId,
+        company_id: demoCompanyId,
+        demo_expires_at: expiresAt.toISOString(),
       });
     }
 
+    // ─── UPDATE ───
     if (action === "update") {
       const userId = String(body?.userId ?? "").trim();
       const fullName = body?.fullName !== undefined ? String(body.fullName).trim() : undefined;
@@ -232,10 +317,7 @@ serve(async (req) => {
         .single();
 
       if (targetProfileError || !targetProfile || targetProfile.company_id !== companyId) {
-        return new Response(JSON.stringify({ error: "User not in your company" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "User not in your company" }, 403);
       }
 
       if (planTier || fullName !== undefined) {
@@ -248,7 +330,6 @@ serve(async (req) => {
           .update(payload)
           .eq("user_id", userId)
           .eq("company_id", companyId);
-
         if (profileUpdateError) throw profileUpdateError;
       }
 
@@ -265,20 +346,15 @@ serve(async (req) => {
         if (insertRoleError) throw insertRoleError;
       }
 
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true });
     }
 
-    return new Response(JSON.stringify({ error: "Unsupported action" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: "Unsupported action" }, 400);
   } catch (error) {
     console.error("manage-company-users error:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse(
+      { error: error instanceof Error ? error.message : "Unknown error" },
+      500
+    );
   }
 });
