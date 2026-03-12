@@ -26,15 +26,24 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) throw new Error("No authorization header");
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+
+    if (!supabaseUrl || !supabaseKey || !anonKey) {
+      throw new Error("Missing backend environment variables");
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const anonClient = createClient(supabaseUrl, anonKey);
 
-    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!);
-    const { data: { user }, error: authError } = await anonClient.auth.getUser(authHeader.replace("Bearer ", ""));
-    if (authError || !user) throw new Error("Unauthorized");
+    const token = authHeader.replace("Bearer ", "").trim();
+    const { data: claimsData, error: authError } = await anonClient.auth.getClaims(token);
+    const userId = claimsData?.claims?.sub;
+    if (authError || !userId) throw new Error("Unauthorized");
 
-    const { reportId } = await req.json();
+    const payload = await req.json();
+    reportId = payload?.reportId ?? null;
     if (!reportId) throw new Error("reportId is required");
 
     // Get report with tender info
