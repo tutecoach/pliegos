@@ -1,0 +1,1 @@
+CREATE POLICY "Admins can delete demo requests" ON public.demo_requests FOR DELETE TO authenticated USING (has_role(auth.uid(), 'admin'::app_role));
