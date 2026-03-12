@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { toast } from "@/hooks/use-toast";
-import { Search, FileText, Calendar, Loader2, ExternalLink, RotateCcw, Trash2, BookOpen, BarChart3 } from "lucide-react";
+import { Search, FileText, Calendar, Loader2, ExternalLink, RotateCcw, Trash2, BookOpen, BarChart3, Pencil } from "lucide-react";
+import TenderEditDialog from "@/components/tender/TenderEditDialog";
 
 const History = () => {
   const { user } = useAuth();
