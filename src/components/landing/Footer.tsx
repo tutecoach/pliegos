@@ -23,7 +23,7 @@ const Footer = () => {
           terms: "Terms",
           cookies: "Cookies",
           rights: "All rights reserved.",
-          regions: "Argentina · Spain · LATAM · EU",
+          regions: "Argentina · LATAM · EU",
         }
       : {
           description:
@@ -42,7 +42,7 @@ const Footer = () => {
           terms: "Términos",
           cookies: "Cookies",
           rights: "Todos los derechos reservados.",
-          regions: "Argentina · España · LATAM · UE",
+          regions: "Argentina · LATAM · UE",
         };
 
   return (

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import DashboardLayout from "@/components/layout/DashboardLayout";
+import UserManagement from "@/components/settings/UserManagement";
 import { toast } from "@/hooks/use-toast";
 import { Settings as SettingsIcon, Loader2, Save } from "lucide-react";
 
@@ -31,6 +32,7 @@ const Settings = () => {
   const [profile, setProfile] = useState<any>(null);
   const [fullName, setFullName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -40,9 +42,10 @@ const Settings = () => {
         setProfile(data);
         setFullName(data.full_name || "");
       }
+      const { data: roleCheck } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+      setIsAdmin(!!roleCheck);
     };
     load();
-    // Load saved preferences
     const savedFormat = localStorage.getItem("pliego-smart-report-format");
     if (savedFormat) setReportFormat(savedFormat);
     const savedAutoSector = localStorage.getItem("pliego-smart-auto-sector");
@@ -201,6 +204,8 @@ const Settings = () => {
               </div>
             </CardContent>
           </Card>
+          {/* User Management - only for admins */}
+          {isAdmin && <UserManagement />}
         </div>
       </div>
     </DashboardLayout>

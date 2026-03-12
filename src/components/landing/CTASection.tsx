@@ -13,7 +13,7 @@ const CTASection = () => {
           title: "Stop reading tenders. Start winning them.",
           subtitle:
             "Join companies that already run strategic AI analysis in minutes: legal review, scoring simulation and technical memory generation.",
-          regions: "Argentina · Spain · LATAM · European Union",
+          regions: "Argentina · LATAM · European Union",
           primary: "Request a Demo",
           secondary: "Access platform",
         }
@@ -21,7 +21,7 @@ const CTASection = () => {
           title: "Deja de leer pliegos. Empieza a ganar licitaciones.",
           subtitle:
             "Únete a las empresas que ya analizan sus pliegos con IA estratégica sectorial: análisis jurídico-técnico, scoring predictivo y memoria técnica en minutos.",
-          regions: "Argentina · España · LATAM · Unión Europea",
+          regions: "Argentina · LATAM · Unión Europea",
           primary: "Solicitar Demo",
           secondary: "Acceder al sistema",
         };
