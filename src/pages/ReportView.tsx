@@ -22,10 +22,10 @@ const ReportView = () => {
     const load = async () => {
       const [tenderRes, reportRes] = await Promise.all([
         supabase.from("tenders").select("*").eq("id", tenderId).single(),
-        supabase.from("analysis_reports").select("report_data, status").eq("tender_id", tenderId).eq("status", "completed").order("created_at", { ascending: false }).limit(1).single(),
+        supabase.from("analysis_reports").select("report_data, status").eq("tender_id", tenderId).eq("status", "completed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
       ]);
       setTender(tenderRes.data);
-      setReportData(reportRes.data?.report_data);
+      setReportData(reportRes.data?.report_data || null);
       setLoading(false);
     };
     load();
