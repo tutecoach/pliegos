@@ -12,7 +12,7 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader?.startsWith("Bearer ")) throw new Error("No authorization header");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
@@ -22,10 +22,19 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) throw new Error("Unauthorized");
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    const userId = claimsData?.claims?.sub;
+    if (claimsError || !userId) throw new Error("Unauthorized");
 
-    const { tenderId, companyId } = await req.json();
+    let body: { tenderId?: string; companyId?: string };
+    try {
+      body = await req.json();
+    } catch {
+      throw new Error("Invalid request body");
+    }
+
+    const { tenderId, companyId } = body;
     if (!tenderId || !companyId) throw new Error("tenderId and companyId required");
 
     // Fetch all context
