@@ -44,7 +44,7 @@ const HeroSection = () => {
           description:
             "PLIEGO SMART combina análisis jurídico-técnico, simulación de puntuación y generación de memoria técnica sectorial para maximizar tu probabilidad de adjudicación.",
           sectors: "Obras civiles · Energía · Tecnología · Sanidad · Agua · Telecomunicaciones · y más sectores",
-          ctaPrimary: "Comenzar ahora",
+          ctaPrimary: "Solicitar Demo",
           ctaSecondary: "Acceder al sistema",
           safe: "Multi-tenant seguro",
           scoring: "Scoring predictivo",
