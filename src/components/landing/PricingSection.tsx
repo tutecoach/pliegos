@@ -180,7 +180,7 @@ const PricingSection = () => {
               </ul>
 
               <Button className="w-full" variant={plan.highlighted ? "default" : "outline"} asChild>
-                <Link to="/register">{copy.cta}</Link>
+                <Link to="/request-demo">{copy.cta}</Link>
               </Button>
             </motion.div>
           ))}

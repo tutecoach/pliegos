@@ -90,7 +90,7 @@ const HeroSection = () => {
 
             <div className="flex flex-col sm:flex-row gap-4 mb-12">
               <Button size="lg" className="text-base px-8 gap-2" asChild>
-                <Link to="/register">
+                <Link to="/request-demo">
                   {copy.ctaPrimary}
                   <ArrowRight size={18} />
                 </Link>
