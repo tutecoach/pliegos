@@ -12,7 +12,7 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header");
+    if (!authHeader?.startsWith("Bearer ")) throw new Error("No authorization header");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
@@ -22,10 +22,19 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) throw new Error("Unauthorized");
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    const userId = claimsData?.claims?.sub;
+    if (claimsError || !userId) throw new Error("Unauthorized");
 
-    const { tenderId, companyId } = await req.json();
+    let body: { tenderId?: string; companyId?: string };
+    try {
+      body = await req.json();
+    } catch {
+      throw new Error("Invalid request body");
+    }
+
+    const { tenderId, companyId } = body;
     if (!tenderId || !companyId) throw new Error("tenderId and companyId required");
 
     // Fetch all context
@@ -121,37 +130,66 @@ ${strategyRes.data ? `Económica: ${strategyRes.data.estrategia_economica || 'N/
 
 ${report?.resumen_ejecutivo ? `RESUMEN DEL ANÁLISIS: ${report.resumen_ejecutivo}` : ''}
 
-Genera la memoria técnica completa en Markdown, adaptada al sector ${sector}, maximizando la puntuación en criterios de juicio de valor.`;
+Genera la memoria técnica completa en Markdown, adaptada al sector ${sector}, maximizando la puntuación en criterios de juicio de valor. Debe ser concreta y ejecutiva (entre 1.200 y 1.800 palabras).`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.3,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 95000);
+
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.3,
+          max_tokens: 2200,
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return new Response(JSON.stringify({ error: "La generación tardó demasiado. Probá nuevamente." }), {
+          status: 504,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const aiRaw = await aiResponse.text();
 
     if (!aiResponse.ok) {
       const status = aiResponse.status;
       if (status === 429) return new Response(JSON.stringify({ error: "Límite de solicitudes excedido." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       if (status === 402) return new Response(JSON.stringify({ error: "Créditos insuficientes." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      console.error("AI gateway error body:", aiRaw.slice(0, 800));
       throw new Error(`AI gateway error: ${status}`);
     }
 
-    const aiData = await aiResponse.json();
+    let aiData: any;
+    try {
+      aiData = JSON.parse(aiRaw);
+    } catch {
+      console.error("AI response parse error body:", aiRaw.slice(0, 800));
+      throw new Error("Respuesta inválida del motor de IA");
+    }
+
     const content = aiData.choices?.[0]?.message?.content || "";
+    if (!content.trim()) throw new Error("No se pudo generar contenido");
 
     // Save technical memory
     const { data: memory, error: memError } = await supabase.from("technical_memories").insert({
-      tender_id: tenderId, company_id: companyId, content, sector, status: "generated", created_by: user.id,
+      tender_id: tenderId, company_id: companyId, content, sector, status: "generated", created_by: userId,
     }).select("id").single();
 
     if (memError) throw memError;
