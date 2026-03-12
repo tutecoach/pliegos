@@ -67,7 +67,8 @@ const Footer = () => {
             <ul className="space-y-2 text-sm text-background/60">
               <li><a href="#" className="hover:text-background transition-colors">{copy.about}</a></li>
               <li><a href="#contact" className="hover:text-background transition-colors">{copy.contact}</a></li>
-              <li><a href="#" className="hover:text-background transition-colors">{copy.blog}</a></li>
+              <li><a href="tel:+5492645792222" className="hover:text-background transition-colors">+54 9 264 579 2222</a></li>
+              <li><a href="mailto:cuyotradingsas@gmail.com" className="hover:text-background transition-colors">cuyotradingsas@gmail.com</a></li>
             </ul>
           </div>
           <div>
