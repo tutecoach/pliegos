@@ -92,17 +92,39 @@ serve(async (req) => {
       .select("file_name, file_path, file_size, mime_type")
       .eq("tender_id", report.tender_id);
 
-    // Download PDF content
-    let pdfTexts: string[] = [];
-    if (docs && docs.length > 0) {
-      for (const doc of docs) {
-        const { data: fileData } = await supabase.storage.from("tender-documents").download(doc.file_path);
-        if (fileData) {
-        const bytes = new Uint8Array(await fileData.arrayBuffer());
-          const base64 = toBase64(bytes);
-          pdfTexts.push(base64);
-        }
+    const pdfDocs = (docs ?? []).filter((doc) => {
+      const mime = doc.mime_type?.toLowerCase() ?? "";
+      const name = doc.file_name?.toLowerCase() ?? "";
+      return mime.includes("pdf") || name.endsWith(".pdf");
+    });
+
+    const docsForAi = pdfDocs.slice(0, MAX_DOCS_FOR_AI);
+    const skippedDocs: string[] = [];
+    const attachedDocs: { file_name: string; base64: string }[] = [];
+
+    for (const doc of docsForAi) {
+      if (doc.file_size && doc.file_size > MAX_PDF_SIZE_BYTES) {
+        skippedDocs.push(`${doc.file_name} (omitido por tamaño > ${Math.round(MAX_PDF_SIZE_BYTES / 1_000_000)}MB)`);
+        continue;
       }
+
+      const { data: fileData, error: downloadError } = await supabase.storage.from("tender-documents").download(doc.file_path);
+      if (downloadError || !fileData) {
+        skippedDocs.push(`${doc.file_name} (no se pudo descargar)`);
+        continue;
+      }
+
+      const bytes = new Uint8Array(await fileData.arrayBuffer());
+      if (bytes.length > MAX_PDF_SIZE_BYTES) {
+        skippedDocs.push(`${doc.file_name} (omitido por tamaño > ${Math.round(MAX_PDF_SIZE_BYTES / 1_000_000)}MB)`);
+        continue;
+      }
+
+      attachedDocs.push({ file_name: doc.file_name, base64: toBase64(bytes) });
+    }
+
+    if (pdfDocs.length > MAX_DOCS_FOR_AI) {
+      skippedDocs.push(`${pdfDocs.length - MAX_DOCS_FOR_AI} documento(s) extra no procesado(s)`);
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
