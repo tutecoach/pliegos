@@ -36,7 +36,7 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
     if (oversized.length > 0) {
       toast({
         title: "Archivo demasiado grande",
-        description: "El tamaño máximo por archivo es 30MB.",
+        description: "El tamaño máximo por archivo es 60MB.",
         variant: "destructive",
       });
     }
