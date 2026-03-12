@@ -333,6 +333,7 @@ export type Database = {
           avatar_url: string | null
           company_id: string | null
           created_at: string
+          demo_expires_at: string | null
           full_name: string | null
           id: string
           plan_tier: Database["public"]["Enums"]["plan_tier"]
@@ -343,6 +344,7 @@ export type Database = {
           avatar_url?: string | null
           company_id?: string | null
           created_at?: string
+          demo_expires_at?: string | null
           full_name?: string | null
           id?: string
           plan_tier?: Database["public"]["Enums"]["plan_tier"]
@@ -353,6 +355,7 @@ export type Database = {
           avatar_url?: string | null
           company_id?: string | null
           created_at?: string
+          demo_expires_at?: string | null
           full_name?: string | null
           id?: string
           plan_tier?: Database["public"]["Enums"]["plan_tier"]

@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN demo_expires_at timestamp with time zone DEFAULT NULL;
