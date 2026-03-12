@@ -49,8 +49,8 @@ const PdfUploader = ({ tenderId, onUploadComplete }: PdfUploaderProps) => {
       toast({ title: "Solo se permiten archivos PDF, DOCX y XLSX", variant: "destructive" });
     }
 
-    const validBySize = pdfs.filter((f) => f.size <= MAX_FILE_SIZE_BYTES);
-    const oversized = pdfs.filter((f) => f.size > MAX_FILE_SIZE_BYTES);
+    const validBySize = valid.filter((f) => f.size <= MAX_FILE_SIZE_BYTES);
+    const oversized = valid.filter((f) => f.size > MAX_FILE_SIZE_BYTES);
 
     if (oversized.length > 0) {
       toast({
