@@ -187,16 +187,18 @@ Plazo presentación: ${tenderInfo?.submission_deadline || 'No especificado'}
 Garantía provisional: ${tenderInfo?.garantia_provisional || 'No especificada'}€
 Garantía definitiva: ${tenderInfo?.garantia_definitiva || 'No especificada'}€
 Clasificación requerida: ${tenderInfo?.clasificacion_requerida || 'No especificada'}
-Documentos adjuntos: ${docs?.map(d => d.file_name).join(', ') || 'Ninguno'}
+Documentos adjuntos en expediente: ${pdfDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
+Documentos realmente enviados a IA: ${attachedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
+${skippedDocs.length ? `Documentos omitidos: ${skippedDocs.join('; ')}` : ''}
 
 ${companyContext}`;
 
-    if (pdfTexts.length > 0) {
+    if (attachedDocs.length > 0) {
       const userContent: any[] = [{ type: "text", text: tenderText }];
-      for (let i = 0; i < pdfTexts.length; i++) {
+      for (const doc of attachedDocs) {
         userContent.push({
           type: "file",
-          file: { filename: docs![i].file_name, file_data: `data:application/pdf;base64,${pdfTexts[i]}` },
+          file: { filename: doc.file_name, file_data: `data:application/pdf;base64,${doc.base64}` },
         });
       }
       messages.push({ role: "user", content: userContent });
