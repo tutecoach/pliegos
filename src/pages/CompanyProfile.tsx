@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import CompanySwitcher from "@/components/company/CompanySwitcher";
+import ClaeSelector from "@/components/company/ClaeSelector";
 import { Building2, Save, Plus, Trash2, Award, Users, Briefcase, Loader2, Truck } from "lucide-react";
 
 const SECTORES = [
@@ -294,7 +295,7 @@ const CompanyProfile = () => {
 
                 <div className="border-t border-border pt-4 mt-4">
                   <h3 className="font-semibold mb-3">Clasificación y Capacidad</h3>
-                  <div><Label>Clasificación Empresarial</Label><Input placeholder="Ej: Grupo C, Subgrupo 6, Categoría D" value={company.clasificacion_empresarial} onChange={e => setCompany(p => ({ ...p, clasificacion_empresarial: e.target.value }))} /></div>
+                  <div><Label>Clasificación Empresarial (CLAE - ARCA)</Label><ClaeSelector value={company.clasificacion_empresarial} onChange={v => setCompany(p => ({ ...p, clasificacion_empresarial: v }))} /></div>
                   <div className="grid sm:grid-cols-2 gap-4 mt-3">
                     <div><Label>Capacidad Técnica</Label><Textarea value={company.capacidad_tecnica} onChange={e => setCompany(p => ({ ...p, capacidad_tecnica: e.target.value }))} placeholder="Medios técnicos disponibles" /></div>
                     <div><Label>Capacidad Económica</Label><Textarea value={company.capacidad_economica} onChange={e => setCompany(p => ({ ...p, capacidad_economica: e.target.value }))} placeholder="Capacidad financiera" /></div>
