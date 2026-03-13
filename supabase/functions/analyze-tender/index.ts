@@ -74,6 +74,56 @@ serve(async (req) => {
     tenderIdForStatus = report.tender_id;
     await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderIdForStatus);
 
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+    const extractDocumentSummary = async (docName: string, mime: string, base64: string) => {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Eres un extractor documental experto en pliegos. Analiza en profundidad el documento adjunto y extrae literalmente los datos críticos con referencias de fuente.",
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Analiza exhaustivamente el documento \"${docName}\" y devuelve una síntesis estructurada en español con estas secciones: 1) Datos contractuales, 2) Requisitos administrativos, 3) Requisitos técnicos, 4) Criterios de adjudicación y ponderaciones, 5) Solvencia, 6) Riesgos y penalidades, 7) Subcontratación, revisión de precios y garantías, 8) Fechas críticas y anexos obligatorios.\n\nReglas: cita documento y cláusula/sección cuando sea posible; no inventes datos; incluye contradicciones internas si existen.`,
+                },
+                {
+                  type: "file",
+                  file: { filename: docName, file_data: `data:${mime};base64,${base64}` },
+                },
+              ],
+            },
+          ],
+          temperature: 0.1,
+        }),
+      });
+
+      if (!response.ok) {
+        const txt = await response.text();
+        throw new Error(`Error extracción ${docName}: ${response.status} ${txt.slice(0, 200)}`);
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content || typeof content !== "string") {
+        throw new Error(`Respuesta vacía al extraer ${docName}`);
+      }
+
+      return content.slice(0, 50000);
+    };
+
     // Get company data for matching (CAPA 3)
     const [
       { data: company },
@@ -98,7 +148,11 @@ serve(async (req) => {
     const docsForAi = supportedDocs.slice(0, MAX_DOCS_FOR_AI);
     const skippedDocs: string[] = [];
     const attachedDocs: { file_name: string; base64: string; mime: string }[] = [];
+    const documentSummaries: string[] = [];
     let totalPayloadSize = 0;
+
+    const estimatedTotalBytes = docsForAi.reduce((acc, doc: any) => acc + (doc.file_size || 0), 0);
+    const useStagedDocAnalysis = estimatedTotalBytes > 30_000_000 || docsForAi.some((doc: any) => (doc.file_size || 0) > 20_000_000);
 
     for (const doc of docsForAi) {
       if (doc.file_size && doc.file_size > MAX_FILE_SIZE_BYTES) {
@@ -106,7 +160,7 @@ serve(async (req) => {
         continue;
       }
 
-      if (totalPayloadSize + (doc.file_size || 0) > MAX_TOTAL_PAYLOAD_BYTES) {
+      if (!useStagedDocAnalysis && totalPayloadSize + (doc.file_size || 0) > MAX_TOTAL_PAYLOAD_BYTES) {
         skippedDocs.push(`${doc.file_name} (omitido: se superaría el límite total de ${Math.round(MAX_TOTAL_PAYLOAD_BYTES / 1_000_000)}MB)`);
         continue;
       }
@@ -123,17 +177,27 @@ serve(async (req) => {
         continue;
       }
 
-      totalPayloadSize += bytes.length;
       const mime = getMimeForAI(doc.file_name, doc.mime_type);
-      attachedDocs.push({ file_name: doc.file_name, base64: toBase64(bytes), mime });
+      const base64 = toBase64(bytes);
+
+      if (useStagedDocAnalysis) {
+        console.log(`Extracting document in staged mode: ${doc.file_name} (${Math.round(bytes.length / 1024)}KB)`);
+        try {
+          const summary = await extractDocumentSummary(doc.file_name, mime, base64);
+          documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
+          totalPayloadSize += bytes.length;
+        } catch (extractError: any) {
+          skippedDocs.push(`${doc.file_name} (error de extracción: ${extractError?.message || "desconocido"})`);
+        }
+      } else {
+        totalPayloadSize += bytes.length;
+        attachedDocs.push({ file_name: doc.file_name, base64, mime });
+      }
     }
 
     if (supportedDocs.length > MAX_DOCS_FOR_AI) {
       skippedDocs.push(`${supportedDocs.length - MAX_DOCS_FOR_AI} documento(s) extra no procesado(s) (máx ${MAX_DOCS_FOR_AI})`);
     }
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const tenderInfo = report.tenders as any;
 
