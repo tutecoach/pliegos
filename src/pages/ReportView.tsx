@@ -93,13 +93,9 @@ const ReportView = () => {
   return (
     <DashboardLayout>
       <div className="p-6 max-w-4xl mx-auto">
-        <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft size={20} /></Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold truncate">{tender.title}</h1>
-            <p className="text-sm text-muted-foreground">{tender.contracting_entity || "Sin entidad"}</p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)}><ArrowLeft size={20} /></Button>
             {reportData && (
               <>
                 <Button variant="outline" size="sm" onClick={() => exportReportAsWord(reportData, tender.title)}>
@@ -123,6 +119,11 @@ const ReportView = () => {
             <Link to={`/dashboard/technical-memory?tenderId=${tenderId}`}>
               <Button variant="secondary" size="sm"><BookOpen size={16} className="mr-2" />Memoria Técnica</Button>
             </Link>
+          </div>
+
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold leading-tight break-words">{tender.title}</h1>
+            <p className="text-sm text-muted-foreground">{tender.contracting_entity || "Sin entidad"}</p>
           </div>
         </div>
 

@@ -7,10 +7,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Increased limits for thorough analysis
-const MAX_DOCS_FOR_AI = 5;
-const MAX_FILE_SIZE_BYTES = 10_000_000; // 10MB per file
-const MAX_TOTAL_PAYLOAD_BYTES = 25_000_000; // 25MB total for all docs
+// Limits tuned for integral multi-document analysis
+const MAX_DOCS_FOR_AI = 10;
+const MAX_FILE_SIZE_BYTES = 60_000_000; // 60MB per file
+const MAX_TOTAL_PAYLOAD_BYTES = 120_000_000; // 120MB total for all docs
 const MAX_COMPANY_ITEMS = 20;
 
 const toBase64 = (bytes: Uint8Array) => {
