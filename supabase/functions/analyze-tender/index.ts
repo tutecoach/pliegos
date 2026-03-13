@@ -95,7 +95,7 @@ serve(async (req) => {
       supabase.from("company_experience").select("*").eq("company_id", report.company_id),
       supabase.from("company_team").select("*").eq("company_id", report.company_id),
       supabase.from("company_equipment").select("*").eq("company_id", report.company_id),
-      supabase.from("tender_documents").select("file_name, file_path, file_size, mime_type").eq("tender_id", report.tender_id),
+      supabase.from("tender_documents").select("file_name, file_path, file_size, mime_type, created_at").eq("tender_id", report.tender_id).order("created_at", { ascending: true }),
     ]);
 
     // Filter supported documents (PDF, DOCX, XLSX)
