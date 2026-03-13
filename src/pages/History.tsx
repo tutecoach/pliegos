@@ -103,11 +103,21 @@ const History = () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await supabase.from("tenders").update({ deleted_at: new Date().toISOString() }).eq("id", deleteTarget.id);
-      setTenders(prev => prev.filter(t => t.id !== deleteTarget.id));
+      const { data, error } = await supabase.functions.invoke("delete-tender", {
+        body: { tenderId: deleteTarget.id },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      await loadTenders();
       toast({ title: "Licitación eliminada", description: `"${deleteTarget.title}" ha sido eliminada.` });
     } catch (err: any) {
-      toast({ title: "Error al eliminar", description: err.message, variant: "destructive" });
+      toast({
+        title: "Error al eliminar",
+        description: err?.message || "No se pudo eliminar la licitación.",
+        variant: "destructive",
+      });
     } finally {
       setDeleting(false);
       setDeleteTarget(null);
