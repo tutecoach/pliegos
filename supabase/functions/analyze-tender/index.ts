@@ -703,31 +703,107 @@ ${companyContext}`;
       throw new Error(`AI gateway error: ${status}`);
     }
 
-    if (!aiResponse) {
-      await supabase.from("analysis_reports").update({ status: "error", report_data: { error: "Payment required" } }).eq("id", reportId);
+    const processedDocNames = docsInMainPrompt.map((d: any) => d.file_name);
+    const processedDocsText = processedDocNames.length ? processedDocNames.join(", ") : "Sin documentos procesados";
+
+    let reportData: any;
+    if (aiResponse) {
+      console.log(`AI analysis model selected: ${selectedModel}`);
+      const aiData = await aiResponse.json();
+
+      // Extract structured data from tool call
+      try {
+        const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+        if (toolCall?.function?.arguments) {
+          reportData = JSON.parse(toolCall.function.arguments);
+        } else {
+          const content = aiData.choices?.[0]?.message?.content || "";
+          const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
+          reportData = JSON.parse(jsonMatch[1].trim());
+        }
+      } catch {
+        reportData = { raw_analysis: aiData.choices?.[0]?.message?.content || "Error parsing", parse_error: true };
+      }
+    } else {
       if (lastCreditsError) {
         console.error("AI credits error detail:", lastCreditsError.slice(0, 300));
       }
-      return new Response(JSON.stringify({ error: "Créditos insuficientes para completar el análisis. Intenta de nuevo en unos minutos." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+      console.warn("No hay créditos para IA. Se genera informe preliminar sin costo adicional.");
 
-    console.log(`AI analysis model selected: ${selectedModel}`);
+      const metadataSummary = [
+        `Título: ${tenderInfo?.title || "No especificado"}`,
+        `Entidad: ${tenderInfo?.contracting_entity || "No especificada"}`,
+        `Presupuesto base: ${tenderInfo?.contract_amount ?? "No especificado"}`,
+        `Plazo presentación: ${tenderInfo?.submission_deadline || "No especificado"}`,
+      ].join(". ");
 
-    const aiData = await aiResponse.json();
-    
-    // Extract structured data from tool call
-    let reportData: any;
-    try {
-      const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-      if (toolCall?.function?.arguments) {
-        reportData = JSON.parse(toolCall.function.arguments);
-      } else {
-        const content = aiData.choices?.[0]?.message?.content || "";
-        const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
-        reportData = JSON.parse(jsonMatch[1].trim());
-      }
-    } catch {
-      reportData = { raw_analysis: aiData.choices?.[0]?.message?.content || "Error parsing", parse_error: true };
+      reportData = {
+        sector_detectado: tenderInfo?.sector || "Multisectorial",
+        resumen_ejecutivo: `Se generó un informe preliminar porque el servicio de IA devolvió créditos insuficientes. Se procesaron los siguientes documentos: ${processedDocsText}.`,
+        datos_contractuales: {
+          objeto_contrato: tenderInfo?.title || "No especificado",
+          entidad_contratante: tenderInfo?.contracting_entity || "No especificada",
+          presupuesto_base: tenderInfo?.contract_amount !== null && tenderInfo?.contract_amount !== undefined ? String(tenderInfo.contract_amount) : "No especificado",
+          valor_estimado: tenderInfo?.valor_estimado !== null && tenderInfo?.valor_estimado !== undefined ? String(tenderInfo.valor_estimado) : "No especificado",
+          duracion: tenderInfo?.duration || "No especificada",
+          plazo_presentacion: tenderInfo?.submission_deadline || "No especificado",
+          garantia_provisional: tenderInfo?.garantia_provisional !== null && tenderInfo?.garantia_provisional !== undefined ? String(tenderInfo.garantia_provisional) : "No especificada",
+          garantia_definitiva: tenderInfo?.garantia_definitiva !== null && tenderInfo?.garantia_definitiva !== undefined ? String(tenderInfo.garantia_definitiva) : "No especificada",
+          clasificacion_requerida: tenderInfo?.clasificacion_requerida || "No especificada",
+          fuentes: processedDocsText,
+        },
+        requisitos_administrativos: [{
+          descripcion: "Validar requisitos administrativos y anexos obligatorios en los documentos procesados.",
+          obligatorio: true,
+          normativa: "Revisión documental manual recomendada",
+          riesgo_exclusion: "medio",
+          fuente: processedDocNames[0] || "Sin documento",
+        }],
+        requisitos_tecnicos: [{
+          descripcion: "Completar revisión técnica detallada del pliego y anexos por disponibilidad de créditos de IA.",
+          fuente: processedDocNames[0] || "Sin documento",
+        }],
+        solvencia: { economica: [], tecnica: [], profesional: [] },
+        criterios_adjudicacion: [],
+        analisis_sectorial: `Informe preliminar en modo contingencia. ${metadataSummary}`,
+        comparativa_empresa: {
+          cumplimiento: "parcial",
+          fortalezas: [],
+          brechas: ["Análisis automatizado completo pendiente por créditos insuficientes"],
+          observaciones: "Se recomienda reintentar el análisis integral cuando haya créditos disponibles.",
+          acciones_recomendadas: "Reintentar re-análisis y validar manualmente los apartados críticos mientras tanto.",
+        },
+        riesgos: [{
+          tipo: "tecnico",
+          descripcion: "El informe actual es preliminar por créditos insuficientes del servicio de IA.",
+          nivel: "medio",
+          mitigacion: "Re-ejecutar el análisis completo cuando se restablezcan los créditos.",
+          fuente: processedDocNames[0] || "Sin documento",
+        }],
+        estrategia: {
+          economica: "No emitir oferta final hasta completar el análisis automatizado integral.",
+          tecnica: "Priorizar revisión manual de criterios y requisitos críticos.",
+          mejoras_propuestas: "Consolidar checklist interno por documento para asegurar trazabilidad.",
+          narrativa_recomendada: "Presentar una versión preliminar y actualizarla tras el re-análisis completo.",
+        },
+        checklist_documental: processedDocNames.length ? processedDocNames.map((name: string) => `Documento cargado: ${name}`) : ["No se detectaron documentos procesables"],
+        recomendaciones_presentacion: [
+          "Verificar manualmente fechas, garantías y clasificación exigida.",
+          "Reintentar el análisis automático cuando haya créditos disponibles.",
+          "No cerrar propuesta sin validar criterios de adjudicación del pliego.",
+        ],
+        scoring: {
+          iat: 50,
+          ire: 50,
+          pea: 40,
+          iat_detalle: "Scoring preliminar por falta de análisis IA completo.",
+          ire_detalle: "Riesgo medio hasta validar todos los requisitos del pliego.",
+          pea_detalle: "Estimación conservadora por información parcialmente estructurada.",
+          recomendacion_presentarse: "media",
+        },
+        modo_contingencia: "sin_creditos_ia",
+        detalle_documental_preliminar: documentSummaries.join("\n\n").slice(0, 6000),
+      };
     }
 
     // Store structured data in sub-tables
