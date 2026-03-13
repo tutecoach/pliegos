@@ -331,7 +331,15 @@ Usa tool calling para devolver el resultado estructurado.`;
       { role: "system", content: systemPrompt },
     ];
 
-    const docListDetail = attachedDocs.map((d, i) => `  DOCUMENTO ${i + 1}: "${d.file_name}" (${d.mime})`).join('\n');
+    const docsInMainPrompt = useStagedDocAnalysis
+      ? docsForAi.map((d: any) => ({ file_name: d.file_name, mime: getMimeForAI(d.file_name, d.mime_type) }))
+      : attachedDocs;
+
+    const docListDetail = docsInMainPrompt.map((d, i) => `  DOCUMENTO ${i + 1}: "${d.file_name}" (${d.mime})`).join('\n');
+
+    const stagedSummariesBlock = useStagedDocAnalysis
+      ? `\n\nEXTRACCIONES DOCUMENTALES PREVIAS (OBLIGATORIO USAR TODAS EN EL INFORME):\n${documentSummaries.join('\n\n------------------------\n\n') || 'Sin extracciones disponibles'}`
+      : "";
 
     const tenderText = `ANALIZA EXHAUSTIVAMENTE **TODOS** los documentos adjuntos del siguiente expediente de licitación.
 
@@ -339,7 +347,8 @@ Usa tool calling para devolver el resultado estructurado.`;
 ⚠️ INSTRUCCIÓN CRÍTICA: ANÁLISIS INTEGRAL MULTI-DOCUMENTO
 ═══════════════════════════════════════════════════════
 
-Se adjuntan ${attachedDocs.length} documento(s). DEBES leer CADA UNO de principio a fin:
+MODO DE PROCESAMIENTO: ${useStagedDocAnalysis ? "staged_multi_doc" : "inline_multi_doc"}
+Se han considerado ${docsInMainPrompt.length} documento(s). DEBES integrar CADA UNO en el análisis final:
 ${docListDetail}
 
 REGLAS DE ANÁLISIS MULTI-DOCUMENTO:
@@ -349,7 +358,7 @@ REGLAS DE ANÁLISIS MULTI-DOCUMENTO:
 4. COMBINA la información de TODOS los documentos en un análisis INTEGRAL.
 5. Si un dato aparece en un documento pero no en otro, INCLÚYELO.
 6. Si hay contradicciones entre documentos, SEÑÁLALAS explícitamente.
-7. En tu análisis, REFERENCIA de qué documento proviene cada dato importante (ej: "Según el documento 'Resolución y Pliego', cláusula 5...").
+7. En tu análisis, REFERENCIA de qué documento proviene cada dato importante.
 8. NO te limites a analizar solo un documento. Si hay 3, analiza los 3 completamente.
 
 METADATOS DE REFERENCIA (verificar y corregir con datos de los documentos):
@@ -364,14 +373,15 @@ METADATOS DE REFERENCIA (verificar y corregir con datos de los documentos):
 - Clasificación requerida: ${tenderInfo?.clasificacion_requerida || 'No especificada'}
 
 DOCUMENTOS EN EXPEDIENTE: ${supportedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
-DOCUMENTOS ADJUNTOS PARA ANÁLISIS INTEGRAL: ${attachedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
+DOCUMENTOS PROCESADOS EN ESTA EJECUCIÓN: ${docsInMainPrompt.map(d => d.file_name).join(', ') || 'Ninguno'}
 ${skippedDocs.length ? `DOCUMENTOS NO PROCESADOS: ${skippedDocs.join('; ')}` : ''}
+${stagedSummariesBlock}
 
-INSTRUCCIÓN FINAL: Lee CADA documento adjunto de PRINCIPIO A FIN. Extrae TODOS los datos relevantes de TODOS los documentos. COMBINA la información en un informe integral. Si los datos de los documentos difieren de los metadatos, USA los de los documentos. NO ignores ningún documento.
+INSTRUCCIÓN FINAL: Genera un informe integral consolidado usando todos los documentos y/o extracciones previas. Si los datos de los documentos difieren de los metadatos, USA los de los documentos.
 
 ${companyContext}`;
 
-    if (attachedDocs.length > 0) {
+    if (!useStagedDocAnalysis && attachedDocs.length > 0) {
       const userContent: any[] = [{ type: "text", text: tenderText }];
       for (const doc of attachedDocs) {
         userContent.push({
@@ -381,7 +391,14 @@ ${companyContext}`;
       }
       messages.push({ role: "user", content: userContent });
     } else {
-      messages.push({ role: "user", content: tenderText + "\n\nADVERTENCIA: No se adjuntaron documentos. El análisis se basa únicamente en los metadatos y datos de empresa proporcionados. Los resultados serán limitados." });
+      messages.push({
+        role: "user",
+        content:
+          tenderText +
+          (docsInMainPrompt.length === 0
+            ? "\n\nADVERTENCIA: No se pudieron procesar documentos. El análisis se basa únicamente en metadatos y datos de empresa."
+            : ""),
+      });
     }
 
     const tools = [{
