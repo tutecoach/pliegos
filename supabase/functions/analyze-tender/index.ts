@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Buffer } from "node:buffer";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,21 +8,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Increased limits for thorough analysis
-const MAX_DOCS_FOR_AI = 5;
-const MAX_FILE_SIZE_BYTES = 10_000_000; // 10MB per file
-const MAX_TOTAL_PAYLOAD_BYTES = 25_000_000; // 25MB total for all docs
+// Limits tuned for integral multi-document analysis
+const MAX_DOCS_FOR_AI = 10;
+const MAX_FILE_SIZE_BYTES = 60_000_000; // 60MB per file
+const MAX_TOTAL_PAYLOAD_BYTES = 120_000_000; // 120MB total for all docs
 const MAX_COMPANY_ITEMS = 20;
 
-const toBase64 = (bytes: Uint8Array) => {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-  return btoa(binary);
-};
+const toBase64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
 
 const safeList = (items: unknown[] | null | undefined, max = MAX_COMPANY_ITEMS) => (items ?? []).slice(0, max);
 
@@ -81,6 +74,56 @@ serve(async (req) => {
     tenderIdForStatus = report.tender_id;
     await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderIdForStatus);
 
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+
+    const extractDocumentSummary = async (docName: string, mime: string, base64: string) => {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Eres un extractor documental experto en pliegos. Analiza en profundidad el documento adjunto y extrae literalmente los datos críticos con referencias de fuente.",
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Analiza exhaustivamente el documento \"${docName}\" y devuelve una síntesis estructurada en español con estas secciones: 1) Datos contractuales, 2) Requisitos administrativos, 3) Requisitos técnicos, 4) Criterios de adjudicación y ponderaciones, 5) Solvencia, 6) Riesgos y penalidades, 7) Subcontratación, revisión de precios y garantías, 8) Fechas críticas y anexos obligatorios.\n\nReglas: cita documento y cláusula/sección cuando sea posible; no inventes datos; incluye contradicciones internas si existen.`,
+                },
+                {
+                  type: "file",
+                  file: { filename: docName, file_data: `data:${mime};base64,${base64}` },
+                },
+              ],
+            },
+          ],
+          temperature: 0.1,
+        }),
+      });
+
+      if (!response.ok) {
+        const txt = await response.text();
+        throw new Error(`Error extracción ${docName}: ${response.status} ${txt.slice(0, 200)}`);
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content || typeof content !== "string") {
+        throw new Error(`Respuesta vacía al extraer ${docName}`);
+      }
+
+      return content.slice(0, 50000);
+    };
+
     // Get company data for matching (CAPA 3)
     const [
       { data: company },
@@ -95,16 +138,21 @@ serve(async (req) => {
       supabase.from("company_experience").select("*").eq("company_id", report.company_id),
       supabase.from("company_team").select("*").eq("company_id", report.company_id),
       supabase.from("company_equipment").select("*").eq("company_id", report.company_id),
-      supabase.from("tender_documents").select("file_name, file_path, file_size, mime_type").eq("tender_id", report.tender_id),
+      supabase.from("tender_documents").select("file_name, file_path, file_size, mime_type, created_at").eq("tender_id", report.tender_id).order("created_at", { ascending: true }),
     ]);
 
-    // Filter supported documents (PDF, DOCX, XLSX)
-    const supportedDocs = (docs ?? []).filter((doc) => isSupportedDoc(doc.file_name));
+    const supportedDocs = (docs ?? [])
+      .filter((doc) => isSupportedDoc(doc.file_name))
+      .sort((a: any, b: any) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
 
     const docsForAi = supportedDocs.slice(0, MAX_DOCS_FOR_AI);
     const skippedDocs: string[] = [];
     const attachedDocs: { file_name: string; base64: string; mime: string }[] = [];
+    const documentSummaries: string[] = [];
     let totalPayloadSize = 0;
+
+    const estimatedTotalBytes = docsForAi.reduce((acc, doc: any) => acc + (doc.file_size || 0), 0);
+    const useStagedDocAnalysis = estimatedTotalBytes > 30_000_000 || docsForAi.some((doc: any) => (doc.file_size || 0) > 20_000_000);
 
     for (const doc of docsForAi) {
       if (doc.file_size && doc.file_size > MAX_FILE_SIZE_BYTES) {
@@ -112,7 +160,7 @@ serve(async (req) => {
         continue;
       }
 
-      if (totalPayloadSize + (doc.file_size || 0) > MAX_TOTAL_PAYLOAD_BYTES) {
+      if (!useStagedDocAnalysis && totalPayloadSize + (doc.file_size || 0) > MAX_TOTAL_PAYLOAD_BYTES) {
         skippedDocs.push(`${doc.file_name} (omitido: se superaría el límite total de ${Math.round(MAX_TOTAL_PAYLOAD_BYTES / 1_000_000)}MB)`);
         continue;
       }
@@ -129,17 +177,27 @@ serve(async (req) => {
         continue;
       }
 
-      totalPayloadSize += bytes.length;
       const mime = getMimeForAI(doc.file_name, doc.mime_type);
-      attachedDocs.push({ file_name: doc.file_name, base64: toBase64(bytes), mime });
+      const base64 = toBase64(bytes);
+
+      if (useStagedDocAnalysis) {
+        console.log(`Extracting document in staged mode: ${doc.file_name} (${Math.round(bytes.length / 1024)}KB)`);
+        try {
+          const summary = await extractDocumentSummary(doc.file_name, mime, base64);
+          documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
+          totalPayloadSize += bytes.length;
+        } catch (extractError: any) {
+          skippedDocs.push(`${doc.file_name} (error de extracción: ${extractError?.message || "desconocido"})`);
+        }
+      } else {
+        totalPayloadSize += bytes.length;
+        attachedDocs.push({ file_name: doc.file_name, base64, mime });
+      }
     }
 
     if (supportedDocs.length > MAX_DOCS_FOR_AI) {
       skippedDocs.push(`${supportedDocs.length - MAX_DOCS_FOR_AI} documento(s) extra no procesado(s) (máx ${MAX_DOCS_FOR_AI})`);
     }
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const tenderInfo = report.tenders as any;
 
@@ -273,7 +331,15 @@ Usa tool calling para devolver el resultado estructurado.`;
       { role: "system", content: systemPrompt },
     ];
 
-    const docListDetail = attachedDocs.map((d, i) => `  DOCUMENTO ${i + 1}: "${d.file_name}" (${d.mime})`).join('\n');
+    const docsInMainPrompt = useStagedDocAnalysis
+      ? docsForAi.map((d: any) => ({ file_name: d.file_name, mime: getMimeForAI(d.file_name, d.mime_type) }))
+      : attachedDocs;
+
+    const docListDetail = docsInMainPrompt.map((d, i) => `  DOCUMENTO ${i + 1}: "${d.file_name}" (${d.mime})`).join('\n');
+
+    const stagedSummariesBlock = useStagedDocAnalysis
+      ? `\n\nEXTRACCIONES DOCUMENTALES PREVIAS (OBLIGATORIO USAR TODAS EN EL INFORME):\n${documentSummaries.join('\n\n------------------------\n\n') || 'Sin extracciones disponibles'}`
+      : "";
 
     const tenderText = `ANALIZA EXHAUSTIVAMENTE **TODOS** los documentos adjuntos del siguiente expediente de licitación.
 
@@ -281,7 +347,8 @@ Usa tool calling para devolver el resultado estructurado.`;
 ⚠️ INSTRUCCIÓN CRÍTICA: ANÁLISIS INTEGRAL MULTI-DOCUMENTO
 ═══════════════════════════════════════════════════════
 
-Se adjuntan ${attachedDocs.length} documento(s). DEBES leer CADA UNO de principio a fin:
+MODO DE PROCESAMIENTO: ${useStagedDocAnalysis ? "staged_multi_doc" : "inline_multi_doc"}
+Se han considerado ${docsInMainPrompt.length} documento(s). DEBES integrar CADA UNO en el análisis final:
 ${docListDetail}
 
 REGLAS DE ANÁLISIS MULTI-DOCUMENTO:
@@ -291,7 +358,7 @@ REGLAS DE ANÁLISIS MULTI-DOCUMENTO:
 4. COMBINA la información de TODOS los documentos en un análisis INTEGRAL.
 5. Si un dato aparece en un documento pero no en otro, INCLÚYELO.
 6. Si hay contradicciones entre documentos, SEÑÁLALAS explícitamente.
-7. En tu análisis, REFERENCIA de qué documento proviene cada dato importante (ej: "Según el documento 'Resolución y Pliego', cláusula 5...").
+7. En tu análisis, REFERENCIA de qué documento proviene cada dato importante.
 8. NO te limites a analizar solo un documento. Si hay 3, analiza los 3 completamente.
 
 METADATOS DE REFERENCIA (verificar y corregir con datos de los documentos):
@@ -306,14 +373,15 @@ METADATOS DE REFERENCIA (verificar y corregir con datos de los documentos):
 - Clasificación requerida: ${tenderInfo?.clasificacion_requerida || 'No especificada'}
 
 DOCUMENTOS EN EXPEDIENTE: ${supportedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
-DOCUMENTOS ADJUNTOS PARA ANÁLISIS INTEGRAL: ${attachedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
+DOCUMENTOS PROCESADOS EN ESTA EJECUCIÓN: ${docsInMainPrompt.map(d => d.file_name).join(', ') || 'Ninguno'}
 ${skippedDocs.length ? `DOCUMENTOS NO PROCESADOS: ${skippedDocs.join('; ')}` : ''}
+${stagedSummariesBlock}
 
-INSTRUCCIÓN FINAL: Lee CADA documento adjunto de PRINCIPIO A FIN. Extrae TODOS los datos relevantes de TODOS los documentos. COMBINA la información en un informe integral. Si los datos de los documentos difieren de los metadatos, USA los de los documentos. NO ignores ningún documento.
+INSTRUCCIÓN FINAL: Genera un informe integral consolidado usando todos los documentos y/o extracciones previas. Si los datos de los documentos difieren de los metadatos, USA los de los documentos.
 
 ${companyContext}`;
 
-    if (attachedDocs.length > 0) {
+    if (!useStagedDocAnalysis && attachedDocs.length > 0) {
       const userContent: any[] = [{ type: "text", text: tenderText }];
       for (const doc of attachedDocs) {
         userContent.push({
@@ -323,7 +391,14 @@ ${companyContext}`;
       }
       messages.push({ role: "user", content: userContent });
     } else {
-      messages.push({ role: "user", content: tenderText + "\n\nADVERTENCIA: No se adjuntaron documentos. El análisis se basa únicamente en los metadatos y datos de empresa proporcionados. Los resultados serán limitados." });
+      messages.push({
+        role: "user",
+        content:
+          tenderText +
+          (docsInMainPrompt.length === 0
+            ? "\n\nADVERTENCIA: No se pudieron procesar documentos. El análisis se basa únicamente en metadatos y datos de empresa."
+            : ""),
+      });
     }
 
     const tools = [{
@@ -467,7 +542,7 @@ ${companyContext}`;
       },
     }];
 
-    console.log(`Sending ${attachedDocs.length} documents to AI (total ${Math.round(totalPayloadSize / 1024)}KB). Model: google/gemini-2.5-pro`);
+    console.log(`Sending analysis request to AI. mode=${useStagedDocAnalysis ? "staged" : "inline"}, docs=${docsInMainPrompt.length}, payload=${Math.round(totalPayloadSize / 1024)}KB, model=google/gemini-2.5-pro`);
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
