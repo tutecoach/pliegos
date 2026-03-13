@@ -77,7 +77,8 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const extractDocumentSummary = async (docName: string, mime: string, base64: string) => {
+    const extractDocumentSummary = async (docName: string, mime: string, bytes: Uint8Array) => {
+      const base64 = toBase64(bytes);
       const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -85,19 +86,19 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-flash-lite",
           messages: [
             {
               role: "system",
               content:
-                "Eres un extractor documental experto en pliegos. Analiza en profundidad el documento adjunto y extrae literalmente los datos críticos con referencias de fuente.",
+                "Eres un extractor documental experto en pliegos. Devuelve síntesis estricta, concreta y acotada en tamaño.",
             },
             {
               role: "user",
               content: [
                 {
                   type: "text",
-                  text: `Analiza exhaustivamente el documento \"${docName}\" y devuelve una síntesis estructurada en español con estas secciones: 1) Datos contractuales, 2) Requisitos administrativos, 3) Requisitos técnicos, 4) Criterios de adjudicación y ponderaciones, 5) Solvencia, 6) Riesgos y penalidades, 7) Subcontratación, revisión de precios y garantías, 8) Fechas críticas y anexos obligatorios.\n\nReglas: cita documento y cláusula/sección cuando sea posible; no inventes datos; incluye contradicciones internas si existen.`,
+                  text: `Analiza exhaustivamente el documento \"${docName}\" y devuelve una síntesis estructurada en español con estas secciones: 1) Datos contractuales, 2) Requisitos administrativos, 3) Requisitos técnicos, 4) Criterios de adjudicación y ponderaciones, 5) Solvencia, 6) Riesgos y penalidades, 7) Subcontratación, revisión de precios y garantías, 8) Fechas críticas y anexos obligatorios.\n\nReglas: cita documento y cláusula/sección cuando sea posible; no inventes datos; incluye contradicciones internas si existen; máximo 9000 caracteres en total.`,
                 },
                 {
                   type: "file",
@@ -106,6 +107,7 @@ serve(async (req) => {
               ],
             },
           ],
+          max_tokens: 2200,
           temperature: 0.1,
         }),
       });
@@ -121,7 +123,7 @@ serve(async (req) => {
         throw new Error(`Respuesta vacía al extraer ${docName}`);
       }
 
-      return content.slice(0, 50000);
+      return content.slice(0, 12000);
     };
 
     // Get company data for matching (CAPA 3)
