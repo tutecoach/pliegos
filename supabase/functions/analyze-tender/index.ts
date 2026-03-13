@@ -12,6 +12,7 @@ const corsHeaders = {
 const MAX_DOCS_FOR_AI = 10;
 const MAX_FILE_SIZE_BYTES = 60_000_000; // 60MB per file
 const MAX_TOTAL_PAYLOAD_BYTES = 120_000_000; // 120MB total for all docs
+const LARGE_DOC_TEXT_MODE_BYTES = 20_000_000; // avoid base64 on very large docs
 const MAX_COMPANY_ITEMS = 20;
 
 const toBase64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
