@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import AnalysisReport from "@/components/tender/AnalysisReport";
 import EconomicSimulator from "@/components/tender/EconomicSimulator";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Loader2, ArrowLeft, BookOpen, Calculator, Download, FileText as FileTextIcon } from "lucide-react";
+import { Loader2, ArrowLeft, BookOpen, Calculator, Download, FileText as FileTextIcon, RefreshCw } from "lucide-react";
 import { exportReportAsWord, exportReportAsPdf } from "@/lib/report-export";
 import { toast } from "@/hooks/use-toast";
 
@@ -18,20 +18,62 @@ const ReportView = () => {
   const [tender, setTender] = useState<any>(null);
   const [reportData, setReportData] = useState<any>(null);
   const [showSimulator, setShowSimulator] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+
+  const loadData = async () => {
+    if (!user || !tenderId) return;
+    const [tenderRes, reportRes] = await Promise.all([
+      supabase.from("tenders").select("*").eq("id", tenderId).single(),
+      supabase.from("analysis_reports").select("id, report_data, status").eq("tender_id", tenderId).eq("status", "completed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    setTender(tenderRes.data);
+    setReportData(reportRes.data?.report_data || null);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    if (!user || !tenderId) return;
-    const load = async () => {
-      const [tenderRes, reportRes] = await Promise.all([
-        supabase.from("tenders").select("*").eq("id", tenderId).single(),
-        supabase.from("analysis_reports").select("report_data, status").eq("tender_id", tenderId).eq("status", "completed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      ]);
-      setTender(tenderRes.data);
-      setReportData(reportRes.data?.report_data || null);
-      setLoading(false);
-    };
-    load();
+    loadData();
   }, [user, tenderId]);
+
+  const handleReanalyze = async () => {
+    if (!user || !tenderId || !tender) return;
+    setReanalyzing(true);
+    try {
+      const { data: existing } = await supabase
+        .from("analysis_reports")
+        .select("id")
+        .eq("tender_id", tenderId)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      let reportId: string;
+      if (existing && existing.length > 0) {
+        reportId = existing[0].id;
+        await supabase.from("analysis_reports").update({ status: "processing", report_data: null } as any).eq("id", reportId);
+      } else {
+        const { data: newReport, error } = await supabase.from("analysis_reports").insert({
+          tender_id: tenderId,
+          company_id: tender.company_id,
+          created_by: user.id,
+          status: "processing",
+        }).select("id").single();
+        if (error) throw error;
+        reportId = newReport.id;
+      }
+
+      await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderId);
+
+      const { error } = await supabase.functions.invoke("analyze-tender", { body: { reportId } });
+      if (error) throw error;
+
+      toast({ title: "Re-análisis iniciado", description: "El análisis integral se está procesando con todos los documentos." });
+      await loadData();
+    } catch (err: any) {
+      toast({ title: "Error al re-analizar", description: err.message, variant: "destructive" });
+    } finally {
+      setReanalyzing(false);
+    }
+  };
 
   if (loading) return (
     <DashboardLayout>

@@ -272,9 +272,28 @@ Usa tool calling para devolver el resultado estructurado.`;
       { role: "system", content: systemPrompt },
     ];
 
-    const tenderText = `ANALIZA EXHAUSTIVAMENTE los documentos adjuntos del siguiente expediente de licitación.
+    const docListDetail = attachedDocs.map((d, i) => `  DOCUMENTO ${i + 1}: "${d.file_name}" (${d.mime})`).join('\n');
 
-METADATOS DE REFERENCIA (verificar y corregir con datos del documento):
+    const tenderText = `ANALIZA EXHAUSTIVAMENTE **TODOS** los documentos adjuntos del siguiente expediente de licitación.
+
+═══════════════════════════════════════════════════════
+⚠️ INSTRUCCIÓN CRÍTICA: ANÁLISIS INTEGRAL MULTI-DOCUMENTO
+═══════════════════════════════════════════════════════
+
+Se adjuntan ${attachedDocs.length} documento(s). DEBES leer CADA UNO de principio a fin:
+${docListDetail}
+
+REGLAS DE ANÁLISIS MULTI-DOCUMENTO:
+1. Lee TODOS los documentos, no solo el primero o el último.
+2. Cada documento puede contener información DIFERENTE y COMPLEMENTARIA.
+3. Uno puede ser el pliego administrativo, otro el técnico, otro una resolución, anexos, etc.
+4. COMBINA la información de TODOS los documentos en un análisis INTEGRAL.
+5. Si un dato aparece en un documento pero no en otro, INCLÚYELO.
+6. Si hay contradicciones entre documentos, SEÑÁLALAS explícitamente.
+7. En tu análisis, REFERENCIA de qué documento proviene cada dato importante (ej: "Según el documento 'Resolución y Pliego', cláusula 5...").
+8. NO te limites a analizar solo un documento. Si hay 3, analiza los 3 completamente.
+
+METADATOS DE REFERENCIA (verificar y corregir con datos de los documentos):
 - Título: "${tenderInfo?.title || 'Sin título'}"
 - Entidad contratante: "${tenderInfo?.contracting_entity || 'No especificada'}"
 - Importe: ${tenderInfo?.contract_amount || 'No especificado'}€
@@ -286,10 +305,10 @@ METADATOS DE REFERENCIA (verificar y corregir con datos del documento):
 - Clasificación requerida: ${tenderInfo?.clasificacion_requerida || 'No especificada'}
 
 DOCUMENTOS EN EXPEDIENTE: ${supportedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
-DOCUMENTOS ADJUNTOS PARA ANÁLISIS: ${attachedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
+DOCUMENTOS ADJUNTOS PARA ANÁLISIS INTEGRAL: ${attachedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
 ${skippedDocs.length ? `DOCUMENTOS NO PROCESADOS: ${skippedDocs.join('; ')}` : ''}
 
-INSTRUCCIÓN: Lee CADA documento adjunto de principio a fin. Extrae TODOS los datos relevantes directamente del contenido. Si los datos del documento difieren de los metadatos, USA los del documento.
+INSTRUCCIÓN FINAL: Lee CADA documento adjunto de PRINCIPIO A FIN. Extrae TODOS los datos relevantes de TODOS los documentos. COMBINA la información en un informe integral. Si los datos de los documentos difieren de los metadatos, USA los de los documentos. NO ignores ningún documento.
 
 ${companyContext}`;
 
