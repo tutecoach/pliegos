@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { encodeBase64 } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Buffer } from "node:buffer";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,7 +14,7 @@ const MAX_FILE_SIZE_BYTES = 60_000_000; // 60MB per file
 const MAX_TOTAL_PAYLOAD_BYTES = 120_000_000; // 120MB total for all docs
 const MAX_COMPANY_ITEMS = 20;
 
-const toBase64 = (bytes: Uint8Array) => encodeBase64(bytes);
+const toBase64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
 
 const safeList = (items: unknown[] | null | undefined, max = MAX_COMPANY_ITEMS) => (items ?? []).slice(0, max);
 
