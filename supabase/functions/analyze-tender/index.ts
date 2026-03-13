@@ -355,6 +355,7 @@ ${companyContext}`;
                 revision_precios: { type: "string", description: "Si hay revisión de precios y fórmula aplicable" },
                 penalidades: { type: "string", description: "Penalidades por incumplimiento si se especifican" },
                 subcontratacion: { type: "string", description: "Condiciones de subcontratación si se especifican" },
+                fuentes: { type: "string", description: "Nombres de los documentos de donde se extrajeron estos datos contractuales, con cláusulas/secciones de referencia" },
               },
               required: ["objeto_contrato"],
               additionalProperties: false,
@@ -367,6 +368,7 @@ ${companyContext}`;
                   obligatorio: { type: "boolean" },
                   normativa: { type: "string", description: "Normativa aplicable si se menciona" },
                   riesgo_exclusion: { type: "string", enum: ["alto", "medio", "bajo"] },
+                  fuente: { type: "string", description: "Nombre del documento y cláusula/sección de donde se extrajo este requisito (ej: 'Pliego Administrativo, cláusula 8.2')" },
                 },
                 required: ["descripcion"], additionalProperties: false,
               }
@@ -379,6 +381,7 @@ ${companyContext}`;
                   experiencia_minima: { type: "string", description: "Experiencia mínima exigida con detalle (años, importes, tipo)" },
                   equipo_minimo: { type: "string", description: "Personal mínimo exigido con perfiles" },
                   medios_minimos: { type: "string", description: "Medios materiales mínimos requeridos" },
+                  fuente: { type: "string", description: "Nombre del documento y sección de donde se extrajo este requisito técnico" },
                 },
                 required: ["descripcion"], additionalProperties: false,
               }
@@ -386,9 +389,9 @@ ${companyContext}`;
             solvencia: {
               type: "object",
               properties: {
-                economica: { type: "array", items: { type: "string" }, description: "Requisitos de solvencia económica con cifras exactas del pliego" },
-                tecnica: { type: "array", items: { type: "string" }, description: "Requisitos de solvencia técnica con datos concretos" },
-                profesional: { type: "array", items: { type: "string" }, description: "Requisitos de solvencia profesional" },
+                economica: { type: "array", items: { type: "object", properties: { texto: { type: "string" }, fuente: { type: "string", description: "Documento y cláusula de origen" } }, required: ["texto"], additionalProperties: false }, description: "Requisitos de solvencia económica con cifras exactas del pliego" },
+                tecnica: { type: "array", items: { type: "object", properties: { texto: { type: "string" }, fuente: { type: "string", description: "Documento y cláusula de origen" } }, required: ["texto"], additionalProperties: false }, description: "Requisitos de solvencia técnica con datos concretos" },
+                profesional: { type: "array", items: { type: "object", properties: { texto: { type: "string" }, fuente: { type: "string", description: "Documento y cláusula de origen" } }, required: ["texto"], additionalProperties: false }, description: "Requisitos de solvencia profesional" },
               },
               additionalProperties: false,
             },
@@ -401,6 +404,7 @@ ${companyContext}`;
                   ponderacion: { type: "number", description: "Ponderación EXACTA en puntos según el pliego" },
                   formula: { type: "string", description: "Fórmula matemática EXACTA si es criterio automático" },
                   subapartados: { type: "string", description: "Desglose de subapartados si los hay" },
+                  fuente: { type: "string", description: "Nombre del documento y sección/cláusula donde aparece este criterio" },
                 },
                 required: ["criterio", "tipo", "ponderacion"], additionalProperties: false,
               }
