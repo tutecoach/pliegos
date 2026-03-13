@@ -98,8 +98,9 @@ serve(async (req) => {
       supabase.from("tender_documents").select("file_name, file_path, file_size, mime_type, created_at").eq("tender_id", report.tender_id).order("created_at", { ascending: true }),
     ]);
 
-    // Filter supported documents (PDF, DOCX, XLSX)
-    const supportedDocs = (docs ?? []).filter((doc) => isSupportedDoc(doc.file_name));
+    const supportedDocs = (docs ?? [])
+      .filter((doc) => isSupportedDoc(doc.file_name))
+      .sort((a: any, b: any) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
 
     const docsForAi = supportedDocs.slice(0, MAX_DOCS_FOR_AI);
     const skippedDocs: string[] = [];
