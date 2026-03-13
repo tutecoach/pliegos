@@ -266,8 +266,19 @@ serve(async (req) => {
       if (useStagedDocAnalysis) {
         console.log(`Extracting document in staged mode: ${doc.file_name} (${Math.round(bytes.length / 1024)}KB)`);
         try {
-          const summary = await extractDocumentSummary(doc.file_name, mime, bytes);
-          documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
+          const isLargePdfForTextMode = mime === "application/pdf" && bytes.length > LARGE_DOC_TEXT_MODE_BYTES;
+          if (isLargePdfForTextMode) {
+            console.log(`Using text-extraction mode for large PDF: ${doc.file_name}`);
+            const extractedText = extractReadableTextFromPdfBytes(bytes);
+            if (extractedText.length < 1500) {
+              throw new Error("texto insuficiente extraído del PDF grande");
+            }
+            const summary = await extractDocumentSummaryFromText(doc.file_name, extractedText);
+            documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
+          } else {
+            const summary = await extractDocumentSummary(doc.file_name, mime, bytes);
+            documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
+          }
           totalPayloadSize += bytes.length;
         } catch (extractError: any) {
           skippedDocs.push(`${doc.file_name} (error de extracción: ${extractError?.message || "desconocido"})`);
