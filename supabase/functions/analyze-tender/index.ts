@@ -265,6 +265,7 @@ REGLAS CRÍTICAS
 - Cada criterio de adjudicación debe tener su ponderación EXACTA del documento.
 - Las fórmulas económicas deben transcribirse TAL CUAL aparecen en el pliego.
 - Los plazos y fechas deben ser los REALES del documento.
+- TRAZABILIDAD DE FUENTES: Para CADA dato relevante, incluye el campo "fuente" indicando el nombre del documento y sección/cláusula de donde se extrajo (ej: "Resolución y Pliego, cláusula 12.3"). Esto es OBLIGATORIO en requisitos, criterios, riesgos, datos contractuales y solvencia.
 
 Usa tool calling para devolver el resultado estructurado.`;
 
