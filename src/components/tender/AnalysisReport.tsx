@@ -3,12 +3,22 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   FileText, AlertTriangle, CheckCircle, Target, Shield, ListChecks,
-  Lightbulb, BarChart3, Building2, Compass, ClipboardList, Zap,
+  Lightbulb, BarChart3, Building2, Compass, ClipboardList, Zap, BookMarked,
 } from "lucide-react";
 
 interface AnalysisReportProps {
   data: any;
 }
+
+const SourceTag = ({ fuente }: { fuente?: string }) => {
+  if (!fuente) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-primary/70 bg-primary/5 border border-primary/10 rounded px-1.5 py-0.5 mt-1">
+      <BookMarked size={10} className="shrink-0" />
+      <span className="truncate max-w-[300px]">{fuente}</span>
+    </span>
+  );
+};
 
 const ScoreGauge = ({ label, value, detail, icon: Icon }: { label: string; value: number; detail?: string; icon: any }) => {
   const color = value >= 70 ? "text-green-600" : value >= 40 ? "text-yellow-600" : "text-destructive";
@@ -27,6 +37,17 @@ const ScoreGauge = ({ label, value, detail, icon: Icon }: { label: string; value
       {detail && <p className="text-xs text-muted-foreground mt-2">{detail}</p>}
     </div>
   );
+};
+
+// Helper to normalize solvencia items (supports both old string[] and new {texto, fuente}[] formats)
+const normalizeSolvenciaItems = (items: any): { texto: string; fuente?: string }[] => {
+  if (!items) return [];
+  if (!Array.isArray(items)) return [{ texto: String(items) }];
+  return items.map((item: any) => {
+    if (typeof item === "string") return { texto: item };
+    if (item?.texto) return item;
+    return { texto: String(item) };
+  });
 };
 
 const AnalysisReport = ({ data }: AnalysisReportProps) => {
@@ -98,13 +119,20 @@ const AnalysisReport = ({ data }: AnalysisReportProps) => {
         <Card><CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><BarChart3 size={18} className="text-primary" />Datos Contractuales Críticos</CardTitle></CardHeader>
           <CardContent>
             <div className="grid sm:grid-cols-2 gap-3">
-              {Object.entries(data.datos_contractuales).map(([key, val]) => (
-                <div key={key} className="bg-muted/50 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p>
-                  <p className="text-sm font-medium mt-0.5">{String(val) || "No especificado"}</p>
-                </div>
-              ))}
+              {Object.entries(data.datos_contractuales)
+                .filter(([key]) => key !== "fuentes")
+                .map(([key, val]) => (
+                  <div key={key} className="bg-muted/50 rounded-lg p-3">
+                    <p className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p>
+                    <p className="text-sm font-medium mt-0.5">{String(val) || "No especificado"}</p>
+                  </div>
+                ))}
             </div>
+            {data.datos_contractuales.fuentes && (
+              <div className="mt-3">
+                <SourceTag fuente={data.datos_contractuales.fuentes} />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -116,9 +144,10 @@ const AnalysisReport = ({ data }: AnalysisReportProps) => {
             {data.requisitos_administrativos.map((r: any, i: number) => (
               <div key={i} className="flex items-start gap-3 bg-muted/50 rounded-lg p-3">
                 <CheckCircle size={14} className={`shrink-0 mt-0.5 ${r.obligatorio !== false ? "text-destructive" : "text-muted-foreground"}`} />
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{r.descripcion}</p>
                   {r.normativa && <p className="text-xs text-muted-foreground">Normativa: {r.normativa}</p>}
+                  <SourceTag fuente={r.fuente} />
                 </div>
                 {r.riesgo_exclusion && <Badge variant={riskColor(r.riesgo_exclusion) as any} className="shrink-0">{r.riesgo_exclusion}</Badge>}
               </div>
@@ -139,6 +168,7 @@ const AnalysisReport = ({ data }: AnalysisReportProps) => {
                   {r.equipo_minimo && <span>👥 Equipo: {r.equipo_minimo}</span>}
                   {r.medios_minimos && <span>🔧 Medios: {r.medios_minimos}</span>}
                 </div>
+                <SourceTag fuente={r.fuente} />
               </div>
             ))}
           </CardContent>
@@ -149,18 +179,28 @@ const AnalysisReport = ({ data }: AnalysisReportProps) => {
       {data.solvencia && (
         <Card><CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><Shield size={18} className="text-primary" />Solvencia Técnica y Económica</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {Object.entries(data.solvencia).map(([tipo, items]: [string, any]) => (
-              <div key={tipo}>
-                <p className="text-sm font-medium capitalize mb-1">{tipo}</p>
-                <ul className="space-y-1">
-                  {(Array.isArray(items) ? items : [items]).map((item: string, i: number) => (
-                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <CheckCircle size={14} className="text-primary shrink-0 mt-0.5" />{item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+            {Object.entries(data.solvencia).map(([tipo, items]: [string, any]) => {
+              const normalized = normalizeSolvenciaItems(items);
+              if (normalized.length === 0) return null;
+              return (
+                <div key={tipo}>
+                  <p className="text-sm font-medium capitalize mb-1">{tipo}</p>
+                  <ul className="space-y-1">
+                    {normalized.map((item, i) => (
+                      <li key={i} className="text-sm text-muted-foreground">
+                        <div className="flex items-start gap-2">
+                          <CheckCircle size={14} className="text-primary shrink-0 mt-0.5" />
+                          <div>
+                            <span>{item.texto}</span>
+                            <SourceTag fuente={item.fuente} />
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}
@@ -171,14 +211,16 @@ const AnalysisReport = ({ data }: AnalysisReportProps) => {
           <CardContent className="space-y-2">
             {data.criterios_adjudicacion.map((c: any, i: number) => (
               <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{c.criterio}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <Badge variant={c.tipo === "automatico" ? "outline" : "secondary"} className="text-xs">{c.tipo}</Badge>
                     {c.formula && <span className="text-xs text-muted-foreground">Fórmula: {c.formula}</span>}
                   </div>
+                  {c.subapartados && <p className="text-xs text-muted-foreground mt-1">{c.subapartados}</p>}
+                  <SourceTag fuente={c.fuente} />
                 </div>
-                <span className="text-lg font-bold text-primary">{c.ponderacion}%</span>
+                <span className="text-lg font-bold text-primary shrink-0 ml-3">{c.ponderacion}%</span>
               </div>
             ))}
           </CardContent>
@@ -227,12 +269,13 @@ const AnalysisReport = ({ data }: AnalysisReportProps) => {
           <CardContent className="space-y-3">
             {data.riesgos.map((r: any, i: number) => (
               <div key={i} className="bg-muted/50 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <Badge variant={riskColor(r.nivel) as any}>{r.nivel}</Badge>
                   <Badge variant="outline" className="text-xs">{r.tipo}</Badge>
                   <p className="text-sm font-medium">{r.descripcion}</p>
                 </div>
                 {r.mitigacion && <p className="text-xs text-muted-foreground ml-1">💡 {r.mitigacion}</p>}
+                <SourceTag fuente={r.fuente} />
               </div>
             ))}
           </CardContent>
