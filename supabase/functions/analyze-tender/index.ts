@@ -542,7 +542,7 @@ ${companyContext}`;
       },
     }];
 
-    console.log(`Sending ${attachedDocs.length} documents to AI (total ${Math.round(totalPayloadSize / 1024)}KB). Model: google/gemini-2.5-pro`);
+    console.log(`Sending analysis request to AI. mode=${useStagedDocAnalysis ? "staged" : "inline"}, docs=${docsInMainPrompt.length}, payload=${Math.round(totalPayloadSize / 1024)}KB, model=google/gemini-2.5-pro`);
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
