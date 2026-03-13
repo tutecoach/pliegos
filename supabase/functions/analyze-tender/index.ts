@@ -118,7 +118,7 @@ serve(async (req) => {
     };
 
     const extractReadableTextFromPdfBytes = (bytes: Uint8Array, maxChars = 120_000) => {
-      const raw = new TextDecoder("latin1").decode(bytes);
+      const decoder = new TextDecoder("latin1");
       const parts: string[] = [];
       let total = 0;
 
@@ -142,17 +142,38 @@ serve(async (req) => {
         total += chunk.length;
       };
 
-      const literalRegex = /\((?:\\.|[^\\()]){24,}\)/g;
-      let literalMatch: RegExpExecArray | null;
-      while ((literalMatch = literalRegex.exec(raw)) !== null && total < maxChars) {
-        pushPart(literalMatch[0]);
-      }
+      const sampleSize = 1_500_000;
+      const byteLen = bytes.length;
+      const sampleStarts = [
+        0,
+        Math.max(0, Math.floor(byteLen * 0.2) - Math.floor(sampleSize / 2)),
+        Math.max(0, Math.floor(byteLen * 0.4) - Math.floor(sampleSize / 2)),
+        Math.max(0, Math.floor(byteLen * 0.6) - Math.floor(sampleSize / 2)),
+        Math.max(0, Math.floor(byteLen * 0.8) - Math.floor(sampleSize / 2)),
+        Math.max(0, byteLen - sampleSize),
+      ];
 
-      if (total < Math.floor(maxChars * 0.35)) {
-        const plainRegex = /[A-Za-zÁÉÍÓÚÑáéíóúñ0-9][A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s,.;:()\-\/]{30,}/g;
-        let plainMatch: RegExpExecArray | null;
-        while ((plainMatch = plainRegex.exec(raw)) !== null && total < maxChars) {
-          pushPart(plainMatch[0]);
+      const uniqueStarts = [...new Set(sampleStarts)].sort((a, b) => a - b);
+
+      for (const start of uniqueStarts) {
+        if (total >= maxChars) break;
+        const end = Math.min(byteLen, start + sampleSize);
+        if (end <= start) continue;
+
+        const raw = decoder.decode(bytes.subarray(start, end));
+
+        const literalRegex = /\((?:\\.|[^\\()]){24,}\)/g;
+        let literalMatch: RegExpExecArray | null;
+        while ((literalMatch = literalRegex.exec(raw)) !== null && total < maxChars) {
+          pushPart(literalMatch[0]);
+        }
+
+        if (total < Math.floor(maxChars * 0.35)) {
+          const plainRegex = /[A-Za-zÁÉÍÓÚÑáéíóúñ0-9][A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s,.;:()\-\/]{30,}/g;
+          let plainMatch: RegExpExecArray | null;
+          while ((plainMatch = plainRegex.exec(raw)) !== null && total < maxChars) {
+            pushPart(plainMatch[0]);
+          }
         }
       }
 
