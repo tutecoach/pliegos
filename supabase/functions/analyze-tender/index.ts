@@ -429,6 +429,7 @@ ${companyContext}`;
                   descripcion: { type: "string", description: "Riesgo concreto identificado en el pliego" },
                   nivel: { type: "string", enum: ["alto", "medio", "bajo"] },
                   mitigacion: { type: "string", description: "Medida de mitigación específica y aplicable" },
+                  fuente: { type: "string", description: "Documento y cláusula donde se identificó este riesgo" },
                 },
                 required: ["tipo", "descripcion", "nivel"], additionalProperties: false,
               }
