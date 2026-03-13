@@ -12,6 +12,7 @@ const corsHeaders = {
 const MAX_DOCS_FOR_AI = 10;
 const MAX_FILE_SIZE_BYTES = 60_000_000; // 60MB per file
 const MAX_TOTAL_PAYLOAD_BYTES = 120_000_000; // 120MB total for all docs
+const LARGE_DOC_TEXT_MODE_BYTES = 20_000_000; // avoid base64 on very large docs
 const MAX_COMPANY_ITEMS = 20;
 
 const toBase64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
@@ -77,7 +78,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-    const extractDocumentSummary = async (docName: string, mime: string, base64: string) => {
+    const extractDocumentSummaryFromText = async (docName: string, textContent: string) => {
       const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -85,19 +86,122 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-flash-lite",
           messages: [
             {
               role: "system",
               content:
-                "Eres un extractor documental experto en pliegos. Analiza en profundidad el documento adjunto y extrae literalmente los datos críticos con referencias de fuente.",
+                "Eres un extractor documental experto en pliegos. Devuelve síntesis estricta, concreta y acotada en tamaño.",
+            },
+            {
+              role: "user",
+              content: `Documento: ${docName}\n\nTexto extraído del documento (puede estar parcialmente normalizado):\n${textContent}\n\nDevuelve una síntesis estructurada con: 1) Datos contractuales, 2) Requisitos administrativos, 3) Requisitos técnicos, 4) Criterios de adjudicación y ponderaciones, 5) Solvencia, 6) Riesgos y penalidades, 7) Subcontratación/revisión de precios/garantías, 8) Fechas críticas/anexos.\n\nReglas: cita fuente por sección cuando sea posible; no inventes datos; máximo 9000 caracteres totales.`,
+            },
+          ],
+          max_tokens: 2200,
+          temperature: 0.1,
+        }),
+      });
+
+      if (!response.ok) {
+        const txt = await response.text();
+        throw new Error(`Error extracción texto ${docName}: ${response.status} ${txt.slice(0, 200)}`);
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content || typeof content !== "string") {
+        throw new Error(`Respuesta vacía al extraer texto de ${docName}`);
+      }
+
+      return content.slice(0, 12000);
+    };
+
+    const extractReadableTextFromPdfBytes = (bytes: Uint8Array, maxChars = 120_000) => {
+      const decoder = new TextDecoder("latin1");
+      const parts: string[] = [];
+      let total = 0;
+
+      const pushPart = (value: string) => {
+        const cleaned = value
+          .replace(/^\(|\)$/g, "")
+          .replace(/\\([\\()])/g, "$1")
+          .replace(/\\[nrt]/g, " ")
+          .replace(/\\\d{3}/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (!cleaned || cleaned.length < 24) return;
+        if (!/[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(cleaned)) return;
+
+        const remaining = maxChars - total;
+        if (remaining <= 0) return;
+
+        const chunk = cleaned.slice(0, remaining);
+        parts.push(chunk);
+        total += chunk.length;
+      };
+
+      const sampleSize = 1_500_000;
+      const byteLen = bytes.length;
+      const sampleStarts = [
+        0,
+        Math.max(0, Math.floor(byteLen * 0.2) - Math.floor(sampleSize / 2)),
+        Math.max(0, Math.floor(byteLen * 0.4) - Math.floor(sampleSize / 2)),
+        Math.max(0, Math.floor(byteLen * 0.6) - Math.floor(sampleSize / 2)),
+        Math.max(0, Math.floor(byteLen * 0.8) - Math.floor(sampleSize / 2)),
+        Math.max(0, byteLen - sampleSize),
+      ];
+
+      const uniqueStarts = [...new Set(sampleStarts)].sort((a, b) => a - b);
+
+      for (const start of uniqueStarts) {
+        if (total >= maxChars) break;
+        const end = Math.min(byteLen, start + sampleSize);
+        if (end <= start) continue;
+
+        const raw = decoder.decode(bytes.subarray(start, end));
+
+        const literalRegex = /\((?:\\.|[^\\()]){24,}\)/g;
+        let literalMatch: RegExpExecArray | null;
+        while ((literalMatch = literalRegex.exec(raw)) !== null && total < maxChars) {
+          pushPart(literalMatch[0]);
+        }
+
+        if (total < Math.floor(maxChars * 0.35)) {
+          const plainRegex = /[A-Za-zÁÉÍÓÚÑáéíóúñ0-9][A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s,.;:()\-\/]{30,}/g;
+          let plainMatch: RegExpExecArray | null;
+          while ((plainMatch = plainRegex.exec(raw)) !== null && total < maxChars) {
+            pushPart(plainMatch[0]);
+          }
+        }
+      }
+
+      return parts.join("\n").slice(0, maxChars);
+    };
+
+    const extractDocumentSummary = async (docName: string, mime: string, bytes: Uint8Array) => {
+      const base64 = toBase64(bytes);
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-lite",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Eres un extractor documental experto en pliegos. Devuelve síntesis estricta, concreta y acotada en tamaño.",
             },
             {
               role: "user",
               content: [
                 {
                   type: "text",
-                  text: `Analiza exhaustivamente el documento \"${docName}\" y devuelve una síntesis estructurada en español con estas secciones: 1) Datos contractuales, 2) Requisitos administrativos, 3) Requisitos técnicos, 4) Criterios de adjudicación y ponderaciones, 5) Solvencia, 6) Riesgos y penalidades, 7) Subcontratación, revisión de precios y garantías, 8) Fechas críticas y anexos obligatorios.\n\nReglas: cita documento y cláusula/sección cuando sea posible; no inventes datos; incluye contradicciones internas si existen.`,
+                  text: `Analiza exhaustivamente el documento \"${docName}\" y devuelve una síntesis estructurada en español con estas secciones: 1) Datos contractuales, 2) Requisitos administrativos, 3) Requisitos técnicos, 4) Criterios de adjudicación y ponderaciones, 5) Solvencia, 6) Riesgos y penalidades, 7) Subcontratación, revisión de precios y garantías, 8) Fechas críticas y anexos obligatorios.\n\nReglas: cita documento y cláusula/sección cuando sea posible; no inventes datos; incluye contradicciones internas si existen; máximo 9000 caracteres en total.`,
                 },
                 {
                   type: "file",
@@ -106,6 +210,7 @@ serve(async (req) => {
               ],
             },
           ],
+          max_tokens: 2200,
           temperature: 0.1,
         }),
       });
@@ -121,7 +226,7 @@ serve(async (req) => {
         throw new Error(`Respuesta vacía al extraer ${docName}`);
       }
 
-      return content.slice(0, 50000);
+      return content.slice(0, 12000);
     };
 
     // Get company data for matching (CAPA 3)
@@ -178,20 +283,30 @@ serve(async (req) => {
       }
 
       const mime = getMimeForAI(doc.file_name, doc.mime_type);
-      const base64 = toBase64(bytes);
 
       if (useStagedDocAnalysis) {
         console.log(`Extracting document in staged mode: ${doc.file_name} (${Math.round(bytes.length / 1024)}KB)`);
         try {
-          const summary = await extractDocumentSummary(doc.file_name, mime, base64);
-          documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
+          const usePdfTextMode = mime === "application/pdf";
+          if (usePdfTextMode) {
+            console.log(`Using text-extraction mode for PDF: ${doc.file_name}`);
+            const extractedText = extractReadableTextFromPdfBytes(bytes, bytes.length > LARGE_DOC_TEXT_MODE_BYTES ? 140_000 : 100_000);
+            if (extractedText.length < 1200) {
+              throw new Error("texto insuficiente extraído del PDF");
+            }
+            const summary = await extractDocumentSummaryFromText(doc.file_name, extractedText);
+            documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
+          } else {
+            const summary = await extractDocumentSummary(doc.file_name, mime, bytes);
+            documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
+          }
           totalPayloadSize += bytes.length;
         } catch (extractError: any) {
           skippedDocs.push(`${doc.file_name} (error de extracción: ${extractError?.message || "desconocido"})`);
         }
       } else {
         totalPayloadSize += bytes.length;
-        attachedDocs.push({ file_name: doc.file_name, base64, mime });
+        attachedDocs.push({ file_name: doc.file_name, base64: toBase64(bytes), mime });
       }
     }
 
