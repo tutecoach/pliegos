@@ -113,6 +113,10 @@ const ReportView = () => {
                 </Button>
               </>
             )}
+            <Button variant="outline" size="sm" onClick={handleReanalyze} disabled={reanalyzing}>
+              {reanalyzing ? <Loader2 size={16} className="mr-2 animate-spin" /> : <RefreshCw size={16} className="mr-2" />}
+              Re-analizar
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowSimulator(!showSimulator)}>
               <Calculator size={16} className="mr-2" />Simulador
             </Button>
