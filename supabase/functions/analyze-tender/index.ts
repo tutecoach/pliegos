@@ -657,37 +657,61 @@ ${companyContext}`;
       },
     }];
 
-    console.log(`Sending analysis request to AI. mode=${useStagedDocAnalysis ? "staged" : "inline"}, docs=${docsInMainPrompt.length}, payload=${Math.round(totalPayloadSize / 1024)}KB, model=google/gemini-2.5-pro`);
+    const analysisModels = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"];
+    let aiResponse: Response | null = null;
+    let selectedModel: string | null = null;
+    let lastCreditsError = "";
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages,
-        tools,
-        tool_choice: { type: "function", function: { name: "generar_informe_pliego" } },
-        temperature: 0.1,
-      }),
-    });
+    for (const model of analysisModels) {
+      console.log(`Sending analysis request to AI. mode=${useStagedDocAnalysis ? "staged" : "inline"}, docs=${docsInMainPrompt.length}, payload=${Math.round(totalPayloadSize / 1024)}KB, model=${model}`);
 
-    if (!aiResponse.ok) {
-      const status = aiResponse.status;
+      const candidateResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          tools,
+          tool_choice: { type: "function", function: { name: "generar_informe_pliego" } },
+          temperature: 0.1,
+        }),
+      });
+
+      if (candidateResponse.ok) {
+        aiResponse = candidateResponse;
+        selectedModel = model;
+        break;
+      }
+
+      const status = candidateResponse.status;
       if (status === 429) {
         await supabase.from("analysis_reports").update({ status: "error", report_data: { error: "Rate limit exceeded" } }).eq("id", reportId);
         return new Response(JSON.stringify({ error: "Límite de solicitudes excedido. Inténtalo de nuevo en unos minutos." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
+
+      const errText = await candidateResponse.text();
       if (status === 402) {
-        await supabase.from("analysis_reports").update({ status: "error", report_data: { error: "Payment required" } }).eq("id", reportId);
-        return new Response(JSON.stringify({ error: "Créditos insuficientes." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        lastCreditsError = errText;
+        console.warn(`Model ${model} unavailable due to credits. Trying fallback model...`);
+        continue;
       }
-      const errText = await aiResponse.text();
+
       console.error("AI error:", status, errText);
       throw new Error(`AI gateway error: ${status}`);
     }
+
+    if (!aiResponse) {
+      await supabase.from("analysis_reports").update({ status: "error", report_data: { error: "Payment required" } }).eq("id", reportId);
+      if (lastCreditsError) {
+        console.error("AI credits error detail:", lastCreditsError.slice(0, 300));
+      }
+      return new Response(JSON.stringify({ error: "Créditos insuficientes para completar el análisis. Intenta de nuevo en unos minutos." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    console.log(`AI analysis model selected: ${selectedModel}`);
 
     const aiData = await aiResponse.json();
     
