@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import CompanySwitcher from "@/components/company/CompanySwitcher";
+import ClaeSelector from "@/components/company/ClaeSelector";
 import { Building2, Save, Plus, Trash2, Award, Users, Briefcase, Loader2, Truck } from "lucide-react";
 
 const SECTORES = [
