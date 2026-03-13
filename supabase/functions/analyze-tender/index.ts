@@ -180,12 +180,11 @@ serve(async (req) => {
       }
 
       const mime = getMimeForAI(doc.file_name, doc.mime_type);
-      const base64 = toBase64(bytes);
 
       if (useStagedDocAnalysis) {
         console.log(`Extracting document in staged mode: ${doc.file_name} (${Math.round(bytes.length / 1024)}KB)`);
         try {
-          const summary = await extractDocumentSummary(doc.file_name, mime, base64);
+          const summary = await extractDocumentSummary(doc.file_name, mime, bytes);
           documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
           totalPayloadSize += bytes.length;
         } catch (extractError: any) {
@@ -193,7 +192,7 @@ serve(async (req) => {
         }
       } else {
         totalPayloadSize += bytes.length;
-        attachedDocs.push({ file_name: doc.file_name, base64, mime });
+        attachedDocs.push({ file_name: doc.file_name, base64: toBase64(bytes), mime });
       }
     }
 
