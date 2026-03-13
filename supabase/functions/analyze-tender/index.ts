@@ -78,6 +78,87 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
+    const extractDocumentSummaryFromText = async (docName: string, textContent: string) => {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-lite",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Eres un extractor documental experto en pliegos. Devuelve síntesis estricta, concreta y acotada en tamaño.",
+            },
+            {
+              role: "user",
+              content: `Documento: ${docName}\n\nTexto extraído del documento (puede estar parcialmente normalizado):\n${textContent}\n\nDevuelve una síntesis estructurada con: 1) Datos contractuales, 2) Requisitos administrativos, 3) Requisitos técnicos, 4) Criterios de adjudicación y ponderaciones, 5) Solvencia, 6) Riesgos y penalidades, 7) Subcontratación/revisión de precios/garantías, 8) Fechas críticas/anexos.\n\nReglas: cita fuente por sección cuando sea posible; no inventes datos; máximo 9000 caracteres totales.`,
+            },
+          ],
+          max_tokens: 2200,
+          temperature: 0.1,
+        }),
+      });
+
+      if (!response.ok) {
+        const txt = await response.text();
+        throw new Error(`Error extracción texto ${docName}: ${response.status} ${txt.slice(0, 200)}`);
+      }
+
+      const data = await response.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content || typeof content !== "string") {
+        throw new Error(`Respuesta vacía al extraer texto de ${docName}`);
+      }
+
+      return content.slice(0, 12000);
+    };
+
+    const extractReadableTextFromPdfBytes = (bytes: Uint8Array, maxChars = 120_000) => {
+      const raw = new TextDecoder("latin1").decode(bytes);
+      const parts: string[] = [];
+      let total = 0;
+
+      const pushPart = (value: string) => {
+        const cleaned = value
+          .replace(/^\(|\)$/g, "")
+          .replace(/\\([\\()])/g, "$1")
+          .replace(/\\[nrt]/g, " ")
+          .replace(/\\\d{3}/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (!cleaned || cleaned.length < 24) return;
+        if (!/[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(cleaned)) return;
+
+        const remaining = maxChars - total;
+        if (remaining <= 0) return;
+
+        const chunk = cleaned.slice(0, remaining);
+        parts.push(chunk);
+        total += chunk.length;
+      };
+
+      const literalRegex = /\((?:\\.|[^\\()]){24,}\)/g;
+      let literalMatch: RegExpExecArray | null;
+      while ((literalMatch = literalRegex.exec(raw)) !== null && total < maxChars) {
+        pushPart(literalMatch[0]);
+      }
+
+      if (total < Math.floor(maxChars * 0.35)) {
+        const plainRegex = /[A-Za-zÁÉÍÓÚÑáéíóúñ0-9][A-Za-zÁÉÍÓÚÑáéíóúñ0-9\s,.;:()\-\/]{30,}/g;
+        let plainMatch: RegExpExecArray | null;
+        while ((plainMatch = plainRegex.exec(raw)) !== null && total < maxChars) {
+          pushPart(plainMatch[0]);
+        }
+      }
+
+      return parts.join("\n").slice(0, maxChars);
+    };
+
     const extractDocumentSummary = async (docName: string, mime: string, bytes: Uint8Array) => {
       const base64 = toBase64(bytes);
       const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
