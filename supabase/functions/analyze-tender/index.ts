@@ -287,12 +287,12 @@ serve(async (req) => {
       if (useStagedDocAnalysis) {
         console.log(`Extracting document in staged mode: ${doc.file_name} (${Math.round(bytes.length / 1024)}KB)`);
         try {
-          const isLargePdfForTextMode = mime === "application/pdf" && bytes.length > LARGE_DOC_TEXT_MODE_BYTES;
-          if (isLargePdfForTextMode) {
-            console.log(`Using text-extraction mode for large PDF: ${doc.file_name}`);
-            const extractedText = extractReadableTextFromPdfBytes(bytes);
-            if (extractedText.length < 1500) {
-              throw new Error("texto insuficiente extraído del PDF grande");
+          const usePdfTextMode = mime === "application/pdf";
+          if (usePdfTextMode) {
+            console.log(`Using text-extraction mode for PDF: ${doc.file_name}`);
+            const extractedText = extractReadableTextFromPdfBytes(bytes, bytes.length > LARGE_DOC_TEXT_MODE_BYTES ? 140_000 : 100_000);
+            if (extractedText.length < 1200) {
+              throw new Error("texto insuficiente extraído del PDF");
             }
             const summary = await extractDocumentSummaryFromText(doc.file_name, extractedText);
             documentSummaries.push(`DOCUMENTO: ${doc.file_name}\n${summary}`);
