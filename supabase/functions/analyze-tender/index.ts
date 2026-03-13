@@ -7,9 +7,11 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const MAX_DOCS_FOR_AI = 1;
-const MAX_PDF_SIZE_BYTES = 2_000_000;
-const MAX_COMPANY_ITEMS = 15;
+// Increased limits for thorough analysis
+const MAX_DOCS_FOR_AI = 5;
+const MAX_FILE_SIZE_BYTES = 10_000_000; // 10MB per file
+const MAX_TOTAL_PAYLOAD_BYTES = 25_000_000; // 25MB total for all docs
+const MAX_COMPANY_ITEMS = 20;
 
 const toBase64 = (bytes: Uint8Array) => {
   let binary = "";
@@ -22,6 +24,21 @@ const toBase64 = (bytes: Uint8Array) => {
 };
 
 const safeList = (items: unknown[] | null | undefined, max = MAX_COMPANY_ITEMS) => (items ?? []).slice(0, max);
+
+const getMimeForAI = (fileName: string, originalMime: string | null): string => {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (lower.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  return originalMime || "application/octet-stream";
+};
+
+const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".xlsx"];
+
+const isSupportedDoc = (fileName: string): boolean => {
+  const lower = fileName.toLowerCase();
+  return SUPPORTED_EXTENSIONS.some(ext => lower.endsWith(ext));
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -65,46 +82,38 @@ serve(async (req) => {
     await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderIdForStatus);
 
     // Get company data for matching (CAPA 3)
-    const { data: company } = await supabase
-      .from("companies")
-      .select("*")
-      .eq("id", report.company_id)
-      .single();
+    const [
+      { data: company },
+      { data: companyCerts },
+      { data: companyExp },
+      { data: companyTeam },
+      { data: companyEquipment },
+      { data: docs },
+    ] = await Promise.all([
+      supabase.from("companies").select("*").eq("id", report.company_id).single(),
+      supabase.from("company_certifications").select("*").eq("company_id", report.company_id),
+      supabase.from("company_experience").select("*").eq("company_id", report.company_id),
+      supabase.from("company_team").select("*").eq("company_id", report.company_id),
+      supabase.from("company_equipment").select("*").eq("company_id", report.company_id),
+      supabase.from("tender_documents").select("file_name, file_path, file_size, mime_type").eq("tender_id", report.tender_id),
+    ]);
 
-    const { data: companyCerts } = await supabase
-      .from("company_certifications")
-      .select("*")
-      .eq("company_id", report.company_id);
+    // Filter supported documents (PDF, DOCX, XLSX)
+    const supportedDocs = (docs ?? []).filter((doc) => isSupportedDoc(doc.file_name));
 
-    const { data: companyExp } = await supabase
-      .from("company_experience")
-      .select("*")
-      .eq("company_id", report.company_id);
-
-    const { data: companyTeam } = await supabase
-      .from("company_team")
-      .select("*")
-      .eq("company_id", report.company_id);
-
-    // Get uploaded documents
-    const { data: docs } = await supabase
-      .from("tender_documents")
-      .select("file_name, file_path, file_size, mime_type")
-      .eq("tender_id", report.tender_id);
-
-    const pdfDocs = (docs ?? []).filter((doc) => {
-      const mime = doc.mime_type?.toLowerCase() ?? "";
-      const name = doc.file_name?.toLowerCase() ?? "";
-      return mime.includes("pdf") || name.endsWith(".pdf");
-    });
-
-    const docsForAi = pdfDocs.slice(0, MAX_DOCS_FOR_AI);
+    const docsForAi = supportedDocs.slice(0, MAX_DOCS_FOR_AI);
     const skippedDocs: string[] = [];
-    const attachedDocs: { file_name: string; base64: string }[] = [];
+    const attachedDocs: { file_name: string; base64: string; mime: string }[] = [];
+    let totalPayloadSize = 0;
 
     for (const doc of docsForAi) {
-      if (doc.file_size && doc.file_size > MAX_PDF_SIZE_BYTES) {
-        skippedDocs.push(`${doc.file_name} (omitido por tamaño > ${Math.round(MAX_PDF_SIZE_BYTES / 1_000_000)}MB)`);
+      if (doc.file_size && doc.file_size > MAX_FILE_SIZE_BYTES) {
+        skippedDocs.push(`${doc.file_name} (omitido: tamaño > ${Math.round(MAX_FILE_SIZE_BYTES / 1_000_000)}MB)`);
+        continue;
+      }
+
+      if (totalPayloadSize + (doc.file_size || 0) > MAX_TOTAL_PAYLOAD_BYTES) {
+        skippedDocs.push(`${doc.file_name} (omitido: se superaría el límite total de ${Math.round(MAX_TOTAL_PAYLOAD_BYTES / 1_000_000)}MB)`);
         continue;
       }
 
@@ -115,16 +124,18 @@ serve(async (req) => {
       }
 
       const bytes = new Uint8Array(await fileData.arrayBuffer());
-      if (bytes.length > MAX_PDF_SIZE_BYTES) {
-        skippedDocs.push(`${doc.file_name} (omitido por tamaño > ${Math.round(MAX_PDF_SIZE_BYTES / 1_000_000)}MB)`);
+      if (bytes.length > MAX_FILE_SIZE_BYTES) {
+        skippedDocs.push(`${doc.file_name} (omitido: tamaño real > ${Math.round(MAX_FILE_SIZE_BYTES / 1_000_000)}MB)`);
         continue;
       }
 
-      attachedDocs.push({ file_name: doc.file_name, base64: toBase64(bytes) });
+      totalPayloadSize += bytes.length;
+      const mime = getMimeForAI(doc.file_name, doc.mime_type);
+      attachedDocs.push({ file_name: doc.file_name, base64: toBase64(bytes), mime });
     }
 
-    if (pdfDocs.length > MAX_DOCS_FOR_AI) {
-      skippedDocs.push(`${pdfDocs.length - MAX_DOCS_FOR_AI} documento(s) extra no procesado(s)`);
+    if (supportedDocs.length > MAX_DOCS_FOR_AI) {
+      skippedDocs.push(`${supportedDocs.length - MAX_DOCS_FOR_AI} documento(s) extra no procesado(s) (máx ${MAX_DOCS_FOR_AI})`);
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -132,44 +143,128 @@ serve(async (req) => {
 
     const tenderInfo = report.tenders as any;
 
-    // Build company context for CAPA 3
+    // Build comprehensive company context for CAPA 3
     const companyContext = company ? `
-DATOS DE LA EMPRESA LICITADORA:
+═══════════════════════════════════════════════════════
+DATOS DE LA EMPRESA LICITADORA (para CAPA 3 - Matching)
+═══════════════════════════════════════════════════════
 - Razón Social: ${company.name}
 - CIF: ${company.cif || 'No proporcionado'}
-- Facturación Anual: ${company.facturacion_anual ? company.facturacion_anual + '€' : 'No proporcionada'}
-- Patrimonio Neto: ${company.patrimonio_neto ? company.patrimonio_neto + '€' : 'No proporcionado'}
+- Facturación Anual: ${company.facturacion_anual ? company.facturacion_anual.toLocaleString() + '€' : 'No proporcionada'}
+- Patrimonio Neto: ${company.patrimonio_neto ? company.patrimonio_neto.toLocaleString() + '€' : 'No proporcionado'}
 - Clasificación Empresarial: ${company.clasificacion_empresarial || 'No proporcionada'}
 - Sectores de Actividad: ${company.sectores_actividad?.join(', ') || 'No especificados'}
 - Capacidad Técnica: ${company.capacidad_tecnica || 'No proporcionada'}
 - Capacidad Económica: ${company.capacidad_economica || 'No proporcionada'}
+- Dirección: ${company.address || 'No proporcionada'}
+- Web: ${company.website || 'No proporcionada'}
 
-CERTIFICACIONES (máx ${MAX_COMPANY_ITEMS}):
-${safeList(companyCerts)?.map((c: any) => `- ${c.nombre} (${c.organismo_emisor || 'N/A'}) - Vigente hasta: ${c.fecha_vencimiento || 'N/A'}`).join('\n') || 'Sin certificaciones registradas'}
+CERTIFICACIONES DE LA EMPRESA:
+${safeList(companyCerts)?.map((c: any) => `  • ${c.nombre} | Emisor: ${c.organismo_emisor || 'N/A'} | Vigente hasta: ${c.fecha_vencimiento || 'N/A'} | Puntuable: ${c.puntuable ? 'Sí' : 'No'}`).join('\n') || '  Sin certificaciones registradas'}
 
-EXPERIENCIA PREVIA (máx ${MAX_COMPANY_ITEMS}):
-${safeList(companyExp)?.map((e: any) => `- ${e.titulo} | Cliente: ${e.cliente || 'N/A'} | Sector: ${e.sector || 'N/A'} | Importe: ${e.importe ? e.importe + '€' : 'N/A'}`).join('\n') || 'Sin experiencia registrada'}
+EXPERIENCIA PREVIA DE LA EMPRESA:
+${safeList(companyExp)?.map((e: any) => `  • ${e.titulo} | Cliente: ${e.cliente || 'N/A'} | Sector: ${e.sector || 'N/A'} | Importe: ${e.importe ? e.importe.toLocaleString() + '€' : 'N/A'} | Desde: ${e.fecha_inicio || 'N/A'} hasta: ${e.fecha_fin || 'N/A'} | Resultado: ${e.resultado || 'N/A'}`).join('\n') || '  Sin experiencia registrada'}
 
-EQUIPO TÉCNICO (máx ${MAX_COMPANY_ITEMS}):
-${safeList(companyTeam)?.map((t: any) => `- ${t.nombre} | ${t.cargo || 'N/A'} | ${t.titulacion || 'N/A'} | ${t.experiencia_anos || 0} años | Especialidad: ${t.sector_especialidad || 'N/A'}`).join('\n') || 'Sin equipo registrado'}
-` : 'No se proporcionaron datos de empresa.';
+EQUIPO TÉCNICO DE LA EMPRESA:
+${safeList(companyTeam)?.map((t: any) => `  • ${t.nombre} | Cargo: ${t.cargo || 'N/A'} | Titulación: ${t.titulacion || 'N/A'} | Experiencia: ${t.experiencia_anos || 0} años | Especialidad: ${t.sector_especialidad || 'N/A'} | Certificaciones: ${t.certificaciones?.join(', ') || 'N/A'}`).join('\n') || '  Sin equipo registrado'}
 
-    const systemPrompt = `Eres el motor estratégico de PLIEGO SMART. Actúas como un comité evaluador + asesor jurídico + director técnico + analista financiero + estratega competitivo.
+EQUIPAMIENTO Y MEDIOS MATERIALES DE LA EMPRESA:
+${safeList(companyEquipment)?.map((eq: any) => `  • ${eq.nombre} | Tipo: ${eq.tipo} | Cantidad: ${eq.cantidad || 1} | Estado: ${eq.estado || 'N/A'} | Desc: ${eq.descripcion || 'N/A'}`).join('\n') || '  Sin equipamiento registrado'}
+` : 'No se proporcionaron datos de empresa. Realizar análisis sin comparativa.';
 
-No simplificas. No omites. No especulas. No inventas.
+    const systemPrompt = `Eres el motor estratégico de PLIEGO SMART. Actúas como un comité evaluador + asesor jurídico + director técnico + analista financiero + estratega competitivo trabajando de forma coordinada.
 
-ARQUITECTURA DE ANÁLISIS EN 4 CAPAS:
+═══════════════════════════════════════════════════════
+INSTRUCCIÓN CRÍTICA - LECTURA EXHAUSTIVA DE DOCUMENTOS
+═══════════════════════════════════════════════════════
 
-CAPA 1 – EXTRACCIÓN ESTRUCTURADA: Identifica secciones, clasifica cláusulas, detecta fechas críticas, identifica anexos obligatorios.
-CAPA 2 – CLASIFICACIÓN SECTORIAL: Detecta automáticamente el sector (Obras Civiles, Energía, Agua, Tecnología, Sanidad, Servicios, Industrial, Transporte, Telecomunicaciones, Ambiental, Arquitectura, Facility Management) y activa lógica sectorial específica.
-CAPA 3 – CRUCE CON EMPRESA: Matching de experiencia, facturación, equipo técnico, certificaciones. Identifica fortalezas y brechas.
-CAPA 4 – MOTOR DE ESTRATEGIA COMPETITIVA: Optimización de criterios automáticos y subjetivos, estrategia económica, narrativa técnica, mejoras diferenciales.
+DEBES LEER Y ANALIZAR EXHAUSTIVAMENTE TODO EL CONTENIDO DE LOS DOCUMENTOS ADJUNTOS (PDFs, DOCX, XLSX).
 
-MODELO DE SCORING:
-- IAT (Índice de Adecuación Técnica): (Experiencia similar ponderada + Equipo técnico ponderado + Medios técnicos ponderados) / Total exigido. Escala 0-100.
-  * >85 = Alta competitividad | 65-85 = Media | <65 = Riesgo alto
-- IRE (Índice de Riesgo de Exclusión): 0 = sin riesgo, 100 = exclusión segura. Se activa si faltan requisitos formales, clasificación insuficiente, garantías mal calculadas, solvencia insuficiente.
-- PEA (Probabilidad Estimada de Adjudicación): f(IAT + Puntuación Económica Estimada + Peso Juicio Valor + Competitividad Sectorial). Escala 0-100.
+Tu análisis DEBE basarse PRIMORDIALMENTE en el contenido REAL de los documentos. NO te bases solo en los metadatos proporcionados (título, importe, entidad). Los metadatos son orientativos; la VERDAD está en los documentos.
+
+Para CADA sección del informe:
+- EXTRAE datos concretos del documento (artículos, cláusulas, importes, plazos, requisitos específicos).
+- CITA referencias específicas cuando sea posible (ej: "Según cláusula 12.3 del Pliego Administrativo...").
+- Si un dato aparece en el documento pero NO en los metadatos, USA el dato del documento.
+- Si un dato es contradictorio entre metadatos y documento, PREVALECE el del documento.
+- NO digas "no especificado" si la información SÍ está en el documento.
+
+═══════════════════════════════════════════════════════
+ARQUITECTURA DE ANÁLISIS EN 4 CAPAS
+═══════════════════════════════════════════════════════
+
+CAPA 1 – EXTRACCIÓN ESTRUCTURADA DEL DOCUMENTO:
+- Lee el documento COMPLETO, no solo el inicio.
+- Identifica todas las secciones: pliego administrativo, técnico, anexos, cuadros de características.
+- Clasifica cada cláusula por tipo.
+- Detecta TODAS las fechas críticas (apertura, presentación, ejecución, garantías).
+- Identifica formularios y anexos obligatorios.
+- Detecta contradicciones internas entre secciones.
+- Detecta requisitos ocultos o dispersos en diferentes partes del documento.
+
+CAPA 2 – CLASIFICACIÓN SECTORIAL:
+Detecta automáticamente el sector entre: Obras Civiles, Energía, Agua y Saneamiento, Tecnología, Sanidad, Servicios Generales, Industrial, Transporte, Telecomunicaciones, Ambiental, Arquitectura, Facility Management.
+
+Activa lógica sectorial específica:
+- Obras Civiles: dirección de obra, seguridad y salud, planificación Gantt, mediciones, redeterminación de precios, penalidades.
+- Energía: normativa eléctrica, habilitaciones, certificaciones técnicas, mantenimiento preventivo.
+- Tecnología: SLA, ciberseguridad, arquitectura, GDPR, escalabilidad, integraciones.
+- Agua: normativa hidráulica, caudales, bombeo, impacto ambiental.
+- Sanidad: equipamiento homologado, protocolos, trazabilidad.
+- Servicios: KPIs, cobertura territorial, supervisión.
+
+CAPA 3 – CRUCE CON EMPRESA (si hay datos):
+- Matching REAL de experiencia vs experiencia exigida en el pliego.
+- Matching de facturación vs solvencia económica exigida.
+- Matching de equipo técnico vs perfiles requeridos.
+- Matching de certificaciones vs certificaciones exigidas o puntuables.
+- Matching de equipamiento vs medios materiales exigidos.
+- Clasificar cumplimiento: total, parcial, no_cumple con justificación concreta.
+
+CAPA 4 – MOTOR DE ESTRATEGIA COMPETITIVA:
+- Optimización de criterios automáticos (fórmulas económicas, experiencia cuantificable).
+- Optimización de criterios subjetivos (memoria técnica, mejoras, innovación).
+- Estrategia económica (rango recomendado, riesgo de baja temeraria).
+- Plan de narrativa técnica.
+- Mejoras técnicas diferenciales viables.
+
+═══════════════════════════════════════════════════════
+MODELO DE SCORING
+═══════════════════════════════════════════════════════
+
+IAT (Índice de Adecuación Técnica) 0-100:
+Calcula basándote en datos REALES del pliego vs empresa:
+- Experiencia similar ponderada (¿cumple contratos similares en importe y tipo?)
+- Equipo técnico ponderado (¿tiene los perfiles exigidos?)
+- Medios técnicos ponderados (¿dispone del equipamiento requerido?)
+- Certificaciones (¿tiene las exigidas y las puntuables?)
+Escala: >85 Alta competitividad | 65-85 Media | <65 Riesgo alto
+
+IRE (Índice de Riesgo de Exclusión) 0-100 (0=sin riesgo, 100=exclusión segura):
+Evalúa CADA causa de exclusión encontrada en el pliego:
+- Clasificación empresarial insuficiente
+- Solvencia económica insuficiente
+- Solvencia técnica insuficiente
+- Falta de garantías
+- Requisitos administrativos incumplidos
+- Habilitaciones o registros faltantes
+
+PEA (Probabilidad Estimada de Adjudicación) 0-100:
+f(IAT + Competitividad económica estimada + Capacidad en juicio de valor + Nivel de competencia sectorial)
+
+Recomendación: alta (>70 PEA) | media (40-70) | baja (20-40) | no_recomendable (<20)
+
+═══════════════════════════════════════════════════════
+REGLAS CRÍTICAS
+═══════════════════════════════════════════════════════
+- NO simplifiques el análisis.
+- NO omitas ningún apartado.
+- NO entregues información genérica que no provenga del documento.
+- NO inventes datos que no estén en el documento o en los datos de empresa.
+- Si un requisito aparece en el documento, INCLÚYELO aunque sea menor.
+- Cada criterio de adjudicación debe tener su ponderación EXACTA del documento.
+- Las fórmulas económicas deben transcribirse TAL CUAL aparecen en el pliego.
+- Los plazos y fechas deben ser los REALES del documento.
 
 Usa tool calling para devolver el resultado estructurado.`;
 
@@ -177,19 +272,24 @@ Usa tool calling para devolver el resultado estructurado.`;
       { role: "system", content: systemPrompt },
     ];
 
-    const tenderText = `Analiza el siguiente pliego de licitación.
-Título: "${tenderInfo?.title || 'Sin título'}"
-Entidad contratante: "${tenderInfo?.contracting_entity || 'No especificada'}"
-Importe: ${tenderInfo?.contract_amount || 'No especificado'}€
-Valor estimado: ${tenderInfo?.valor_estimado || 'No especificado'}€
-Duración: ${tenderInfo?.duration || 'No especificada'}
-Plazo presentación: ${tenderInfo?.submission_deadline || 'No especificado'}
-Garantía provisional: ${tenderInfo?.garantia_provisional || 'No especificada'}€
-Garantía definitiva: ${tenderInfo?.garantia_definitiva || 'No especificada'}€
-Clasificación requerida: ${tenderInfo?.clasificacion_requerida || 'No especificada'}
-Documentos adjuntos en expediente: ${pdfDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
-Documentos realmente enviados a IA: ${attachedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
-${skippedDocs.length ? `Documentos omitidos: ${skippedDocs.join('; ')}` : ''}
+    const tenderText = `ANALIZA EXHAUSTIVAMENTE los documentos adjuntos del siguiente expediente de licitación.
+
+METADATOS DE REFERENCIA (verificar y corregir con datos del documento):
+- Título: "${tenderInfo?.title || 'Sin título'}"
+- Entidad contratante: "${tenderInfo?.contracting_entity || 'No especificada'}"
+- Importe: ${tenderInfo?.contract_amount || 'No especificado'}€
+- Valor estimado: ${tenderInfo?.valor_estimado || 'No especificado'}€
+- Duración: ${tenderInfo?.duration || 'No especificada'}
+- Plazo presentación: ${tenderInfo?.submission_deadline || 'No especificado'}
+- Garantía provisional: ${tenderInfo?.garantia_provisional || 'No especificada'}€
+- Garantía definitiva: ${tenderInfo?.garantia_definitiva || 'No especificada'}€
+- Clasificación requerida: ${tenderInfo?.clasificacion_requerida || 'No especificada'}
+
+DOCUMENTOS EN EXPEDIENTE: ${supportedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
+DOCUMENTOS ADJUNTOS PARA ANÁLISIS: ${attachedDocs.map(d => d.file_name).join(', ') || 'Ninguno'}
+${skippedDocs.length ? `DOCUMENTOS NO PROCESADOS: ${skippedDocs.join('; ')}` : ''}
+
+INSTRUCCIÓN: Lee CADA documento adjunto de principio a fin. Extrae TODOS los datos relevantes directamente del contenido. Si los datos del documento difieren de los metadatos, USA los del documento.
 
 ${companyContext}`;
 
@@ -198,33 +298,43 @@ ${companyContext}`;
       for (const doc of attachedDocs) {
         userContent.push({
           type: "file",
-          file: { filename: doc.file_name, file_data: `data:application/pdf;base64,${doc.base64}` },
+          file: { filename: doc.file_name, file_data: `data:${doc.mime};base64,${doc.base64}` },
         });
       }
       messages.push({ role: "user", content: userContent });
     } else {
-      messages.push({ role: "user", content: tenderText });
+      messages.push({ role: "user", content: tenderText + "\n\nADVERTENCIA: No se adjuntaron documentos. El análisis se basa únicamente en los metadatos y datos de empresa proporcionados. Los resultados serán limitados." });
     }
 
     const tools = [{
       type: "function",
       function: {
         name: "generar_informe_pliego",
-        description: "Genera el informe completo de análisis del pliego con las 12 secciones obligatorias y scoring.",
+        description: "Genera el informe completo de análisis del pliego con todas las secciones obligatorias, scoring y datos extraídos directamente del documento.",
         parameters: {
           type: "object",
           properties: {
-            sector_detectado: { type: "string", description: "Sector industrial detectado" },
-            resumen_ejecutivo: { type: "string", description: "Resumen ejecutivo estratégico (3-5 frases)" },
+            sector_detectado: { type: "string", description: "Sector industrial detectado del contenido del pliego" },
+            resumen_ejecutivo: { type: "string", description: "Resumen ejecutivo estratégico (5-8 frases) basado en el contenido real del documento. Incluir objeto del contrato, importe, plazos clave, y valoración estratégica." },
             datos_contractuales: {
               type: "object",
               properties: {
-                objeto_contrato: { type: "string" }, entidad_contratante: { type: "string" },
-                presupuesto_base: { type: "string" }, valor_estimado: { type: "string" },
-                duracion: { type: "string" }, plazo_presentacion: { type: "string" },
-                tipo_contrato: { type: "string" }, procedimiento: { type: "string" },
-                garantia_provisional: { type: "string" }, garantia_definitiva: { type: "string" },
+                objeto_contrato: { type: "string", description: "Objeto COMPLETO del contrato tal como figura en el pliego" },
+                entidad_contratante: { type: "string" },
+                presupuesto_base: { type: "string" },
+                valor_estimado: { type: "string" },
+                duracion: { type: "string" },
+                prorrogas: { type: "string", description: "Prórrogas previstas si las hay" },
+                plazo_presentacion: { type: "string" },
+                tipo_contrato: { type: "string" },
+                procedimiento: { type: "string", description: "Tipo de procedimiento (abierto, restringido, negociado, etc.)" },
+                garantia_provisional: { type: "string" },
+                garantia_definitiva: { type: "string" },
                 clasificacion_requerida: { type: "string" },
+                lote: { type: "string", description: "Información sobre lotes si aplica" },
+                revision_precios: { type: "string", description: "Si hay revisión de precios y fórmula aplicable" },
+                penalidades: { type: "string", description: "Penalidades por incumplimiento si se especifican" },
+                subcontratacion: { type: "string", description: "Condiciones de subcontratación si se especifican" },
               },
               required: ["objeto_contrato"],
               additionalProperties: false,
@@ -232,75 +342,107 @@ ${companyContext}`;
             requisitos_administrativos: {
               type: "array", items: {
                 type: "object",
-                properties: { descripcion: { type: "string" }, obligatorio: { type: "boolean" }, normativa: { type: "string" }, riesgo_exclusion: { type: "string", enum: ["alto", "medio", "bajo"] } },
+                properties: {
+                  descripcion: { type: "string", description: "Descripción detallada del requisito TAL COMO aparece en el pliego" },
+                  obligatorio: { type: "boolean" },
+                  normativa: { type: "string", description: "Normativa aplicable si se menciona" },
+                  riesgo_exclusion: { type: "string", enum: ["alto", "medio", "bajo"] },
+                },
                 required: ["descripcion"], additionalProperties: false,
               }
             },
             requisitos_tecnicos: {
               type: "array", items: {
                 type: "object",
-                properties: { descripcion: { type: "string" }, experiencia_minima: { type: "string" }, equipo_minimo: { type: "string" }, medios_minimos: { type: "string" } },
+                properties: {
+                  descripcion: { type: "string", description: "Descripción detallada del requisito técnico" },
+                  experiencia_minima: { type: "string", description: "Experiencia mínima exigida con detalle (años, importes, tipo)" },
+                  equipo_minimo: { type: "string", description: "Personal mínimo exigido con perfiles" },
+                  medios_minimos: { type: "string", description: "Medios materiales mínimos requeridos" },
+                },
                 required: ["descripcion"], additionalProperties: false,
               }
             },
             solvencia: {
               type: "object",
-              properties: { economica: { type: "array", items: { type: "string" } }, tecnica: { type: "array", items: { type: "string" } }, profesional: { type: "array", items: { type: "string" } } },
+              properties: {
+                economica: { type: "array", items: { type: "string" }, description: "Requisitos de solvencia económica con cifras exactas del pliego" },
+                tecnica: { type: "array", items: { type: "string" }, description: "Requisitos de solvencia técnica con datos concretos" },
+                profesional: { type: "array", items: { type: "string" }, description: "Requisitos de solvencia profesional" },
+              },
               additionalProperties: false,
             },
             criterios_adjudicacion: {
               type: "array", items: {
                 type: "object",
-                properties: { criterio: { type: "string" }, tipo: { type: "string", enum: ["automatico", "juicio_valor"] }, ponderacion: { type: "number" }, formula: { type: "string" } },
+                properties: {
+                  criterio: { type: "string", description: "Nombre del criterio TAL COMO aparece en el pliego" },
+                  tipo: { type: "string", enum: ["automatico", "juicio_valor"] },
+                  ponderacion: { type: "number", description: "Ponderación EXACTA en puntos según el pliego" },
+                  formula: { type: "string", description: "Fórmula matemática EXACTA si es criterio automático" },
+                  subapartados: { type: "string", description: "Desglose de subapartados si los hay" },
+                },
                 required: ["criterio", "tipo", "ponderacion"], additionalProperties: false,
               }
             },
-            analisis_sectorial: { type: "string", description: "Análisis específico del sector detectado con lógica diferenciada" },
+            analisis_sectorial: { type: "string", description: "Análisis específico del sector con normativa aplicable, riesgos sectoriales, claves para maximizar puntuación y documentación diferencial recomendada. Mínimo 200 palabras." },
             comparativa_empresa: {
               type: "object",
               properties: {
                 cumplimiento: { type: "string", enum: ["total", "parcial", "no_cumple"] },
-                fortalezas: { type: "array", items: { type: "string" } },
-                brechas: { type: "array", items: { type: "string" } },
+                fortalezas: { type: "array", items: { type: "string" }, description: "Fortalezas CONCRETAS de la empresa frente a este pliego específico" },
+                brechas: { type: "array", items: { type: "string" }, description: "Brechas CONCRETAS identificadas con referencia al requisito incumplido" },
                 observaciones: { type: "string" },
-                acciones_recomendadas: { type: "string" },
+                acciones_recomendadas: { type: "string", description: "Acciones correctivas específicas y viables" },
               },
               additionalProperties: false,
             },
             riesgos: {
               type: "array", items: {
                 type: "object",
-                properties: { tipo: { type: "string", enum: ["juridico", "tecnico", "economico"] }, descripcion: { type: "string" }, nivel: { type: "string", enum: ["alto", "medio", "bajo"] }, mitigacion: { type: "string" } },
+                properties: {
+                  tipo: { type: "string", enum: ["juridico", "tecnico", "economico"] },
+                  descripcion: { type: "string", description: "Riesgo concreto identificado en el pliego" },
+                  nivel: { type: "string", enum: ["alto", "medio", "bajo"] },
+                  mitigacion: { type: "string", description: "Medida de mitigación específica y aplicable" },
+                },
                 required: ["tipo", "descripcion", "nivel"], additionalProperties: false,
               }
             },
             estrategia: {
               type: "object",
-              properties: { economica: { type: "string" }, tecnica: { type: "string" }, mejoras_propuestas: { type: "string" }, narrativa_recomendada: { type: "string" } },
+              properties: {
+                economica: { type: "string", description: "Estrategia económica detallada: rango recomendado de oferta, análisis de baja temeraria, impacto en puntuación. Basado en la fórmula del pliego." },
+                tecnica: { type: "string", description: "Estrategia técnica: cómo maximizar puntuación en juicio de valor, qué destacar, qué estructura usar en la memoria." },
+                mejoras_propuestas: { type: "string", description: "Mejoras técnicas concretas y viables que aporten puntuación diferencial." },
+                narrativa_recomendada: { type: "string", description: "Estructura narrativa recomendada para la memoria técnica." },
+              },
               additionalProperties: false,
             },
-            checklist_documental: { type: "array", items: { type: "string" } },
-            recomendaciones_presentacion: { type: "array", items: { type: "string" } },
+            checklist_documental: { type: "array", items: { type: "string" }, description: "Lista COMPLETA de documentos a presentar, extraída del pliego. Incluir cada documento individual." },
+            recomendaciones_presentacion: { type: "array", items: { type: "string" }, description: "Recomendaciones específicas para la presentación electrónica y documental." },
             scoring: {
               type: "object",
               properties: {
-                iat: { type: "number", description: "Índice de Adecuación Técnica 0-100" },
-                ire: { type: "number", description: "Índice de Riesgo de Exclusión 0-100" },
+                iat: { type: "number", description: "Índice de Adecuación Técnica 0-100 calculado con datos reales" },
+                ire: { type: "number", description: "Índice de Riesgo de Exclusión 0-100 basado en requisitos concretos del pliego" },
                 pea: { type: "number", description: "Probabilidad Estimada de Adjudicación 0-100" },
-                iat_detalle: { type: "string" },
-                ire_detalle: { type: "string" },
-                pea_detalle: { type: "string" },
+                iat_detalle: { type: "string", description: "Justificación detallada del IAT con datos concretos" },
+                ire_detalle: { type: "string", description: "Justificación del IRE: qué requisitos se cumplen y cuáles no" },
+                pea_detalle: { type: "string", description: "Justificación del PEA con factores considerados" },
                 recomendacion_presentarse: { type: "string", enum: ["alta", "media", "baja", "no_recomendable"] },
               },
               required: ["iat", "ire", "pea", "recomendacion_presentarse"],
               additionalProperties: false,
             },
           },
-          required: ["sector_detectado", "resumen_ejecutivo", "datos_contractuales", "criterios_adjudicacion", "riesgos", "scoring"],
+          required: ["sector_detectado", "resumen_ejecutivo", "datos_contractuales", "requisitos_administrativos", "requisitos_tecnicos", "criterios_adjudicacion", "riesgos", "estrategia", "scoring", "checklist_documental", "recomendaciones_presentacion"],
           additionalProperties: false,
         },
       },
     }];
+
+    console.log(`Sending ${attachedDocs.length} documents to AI (total ${Math.round(totalPayloadSize / 1024)}KB). Model: google/gemini-2.5-pro`);
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -309,11 +451,11 @@ ${companyContext}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-pro",
         messages,
         tools,
         tool_choice: { type: "function", function: { name: "generar_informe_pliego" } },
-        temperature: 0.2,
+        temperature: 0.1,
       }),
     });
 
@@ -341,7 +483,6 @@ ${companyContext}`;
       if (toolCall?.function?.arguments) {
         reportData = JSON.parse(toolCall.function.arguments);
       } else {
-        // Fallback to content parsing
         const content = aiData.choices?.[0]?.message?.content || "";
         const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
         reportData = JSON.parse(jsonMatch[1].trim());
@@ -365,9 +506,17 @@ ${companyContext}`;
 
     const persistenceOps = [];
 
-    // Update tender sector
-    if (reportData.sector_detectado) {
-      persistenceOps.push(supabase.from("tenders").update({ sector: reportData.sector_detectado }).eq("id", tenderId));
+    // Update tender with data extracted from document
+    const tenderUpdate: any = {};
+    if (reportData.sector_detectado) tenderUpdate.sector = reportData.sector_detectado;
+    if (reportData.datos_contractuales) {
+      const dc = reportData.datos_contractuales;
+      if (dc.entidad_contratante) tenderUpdate.contracting_entity = dc.entidad_contratante;
+      if (dc.duracion) tenderUpdate.duration = dc.duracion;
+      if (dc.clasificacion_requerida) tenderUpdate.clasificacion_requerida = dc.clasificacion_requerida;
+    }
+    if (Object.keys(tenderUpdate).length > 0) {
+      persistenceOps.push(supabase.from("tenders").update(tenderUpdate).eq("id", tenderId));
     }
 
     // Save admin requirements
@@ -472,6 +621,8 @@ ${companyContext}`;
         .eq("id", reportId),
       supabase.from("tenders").update({ status: "completed" }).eq("id", tenderId),
     ]);
+
+    console.log(`Analysis completed. Docs processed: ${attachedDocs.length}. Sector: ${reportData.sector_detectado}. IAT: ${reportData.scoring?.iat}, IRE: ${reportData.scoring?.ire}, PEA: ${reportData.scoring?.pea}`);
 
     return new Response(JSON.stringify({ success: true, report_data: reportData }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
