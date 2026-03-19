@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
-import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,122 +11,47 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { toast } from "@/hooks/use-toast";
-import { Search, FileText, Calendar, Loader2, ExternalLink, RotateCcw, Trash2, BookOpen, BarChart3, Pencil } from "lucide-react";
+import { Search, FileText, Calendar, Loader2, RotateCcw, Trash2, BookOpen, BarChart3, Pencil } from "lucide-react";
 import TenderEditDialog from "@/components/tender/TenderEditDialog";
+import { useProfileQuery } from "@/hooks/queries/useCompanyQueries";
+import { useTendersQuery, useDeleteTenderMutation, useRetryAnalysisMutation } from "@/hooks/queries/useTendersQueries";
 
+/**
+ * History — Reescrito con React Query.
+ * 
+ * ANTES: 284 líneas, useEffect + useState + loadTenders() manual.
+ * AHORA: ~120 líneas. Sin useEffect, sin loadTenders(): la caché se invalida
+ *         automáticamente en delete y retry mutations.
+ */
 const History = () => {
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
-  const [tenders, setTenders] = useState<any[]>([]);
-  const [memoriesMap, setMemoriesMap] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(true);
+
+  // Filtros de UI (estado local puro, no servidor)
   const [search, setSearch] = useState("");
   const [sectorFilter, setSectorFilter] = useState("all");
-  const [retrying, setRetrying] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [companyId, setCompanyId] = useState<string | null>(null);
   const [editingTenderId, setEditingTenderId] = useState<string | null>(null);
 
-  const loadTenders = async () => {
-    if (!user) return;
-    const { data: profile } = await supabase.from("profiles").select("company_id").eq("user_id", user.id).single();
-    if (!profile?.company_id) { setLoading(false); return; }
-    setCompanyId(profile.company_id);
+  // React Query: perfil → company_id
+  const { data: profile } = useProfileQuery(user?.id);
+  const companyId = profile?.company_id ?? null;
 
-    const [tendersRes, memoriesRes] = await Promise.all([
-      supabase
-        .from("tenders")
-        .select("id, title, contracting_entity, contract_amount, sector, status, created_at, submission_deadline")
-        .eq("company_id", profile.company_id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("technical_memories")
-        .select("tender_id")
-        .eq("company_id", profile.company_id),
-    ]);
+  // React Query: licitaciones + mapa de memorias
+  const { data, isLoading, refetch } = useTendersQuery(companyId);
+  const tenders = data?.tenders ?? [];
+  const memoriesMap = data?.memoriesMap ?? {};
 
-    setTenders(tendersRes.data || []);
-    
-    const memMap: Record<string, boolean> = {};
-    (memoriesRes.data || []).forEach((m: any) => { memMap[m.tender_id] = true; });
-    setMemoriesMap(memMap);
-    setLoading(false);
-  };
+  // Mutations
+  const deleteMutation = useDeleteTenderMutation(companyId);
+  const retryMutation = useRetryAnalysisMutation(companyId, user?.id);
 
-  useEffect(() => { loadTenders(); }, [user]);
+  const sectors = [...new Set(tenders.map((t) => t.sector).filter(Boolean))];
 
-  const handleRetry = async (e: React.MouseEvent, tenderId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setRetrying(tenderId);
-    try {
-      const { data: existing } = await supabase
-        .from("analysis_reports")
-        .select("id")
-        .eq("tender_id", tenderId)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      let reportId: string;
-      if (existing && existing.length > 0) {
-        reportId = existing[0].id;
-        await supabase.from("analysis_reports").update({ status: "processing", report_data: null } as any).eq("id", reportId);
-      } else {
-        const { data: newReport, error } = await supabase.from("analysis_reports").insert({
-          tender_id: tenderId,
-          company_id: companyId!,
-          created_by: user!.id,
-          status: "processing",
-        }).select("id").single();
-        if (error) throw error;
-        reportId = newReport.id;
-      }
-
-      await supabase.from("tenders").update({ status: "processing" }).eq("id", tenderId);
-
-      const { error } = await supabase.functions.invoke("analyze-tender", { body: { reportId } });
-      if (error) throw error;
-
-      toast({ title: "Análisis reiniciado", description: "El análisis se ha relanzado correctamente." });
-      await loadTenders();
-    } catch (err: any) {
-      toast({ title: "Error al reintentar", description: err.message, variant: "destructive" });
-    } finally {
-      setRetrying(null);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("delete-tender", {
-        body: { tenderId: deleteTarget.id },
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      await loadTenders();
-      toast({ title: "Licitación eliminada", description: `"${deleteTarget.title}" ha sido eliminada.` });
-    } catch (err: any) {
-      toast({
-        title: "Error al eliminar",
-        description: err?.message || "No se pudo eliminar la licitación.",
-        variant: "destructive",
-      });
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
-  };
-
-  const sectors = [...new Set(tenders.map(t => t.sector).filter(Boolean))];
-
-  const filtered = tenders.filter(t => {
-    const matchSearch = !search || t.title?.toLowerCase().includes(search.toLowerCase()) || t.contracting_entity?.toLowerCase().includes(search.toLowerCase());
+  const filtered = tenders.filter((t) => {
+    const matchSearch = !search
+      || t.title?.toLowerCase().includes(search.toLowerCase())
+      || t.contracting_entity?.toLowerCase().includes(search.toLowerCase());
     const matchSector = sectorFilter === "all" || t.sector === sectorFilter;
     return matchSearch && matchSector;
   });
@@ -141,8 +65,13 @@ const History = () => {
     }
   };
 
-  const canRetry = (status: string) => status === "pending" || status === "error";
-  const hasMemory = (tenderId: string) => memoriesMap[tenderId] === true;
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(
+      { tenderId: deleteTarget.id, title: deleteTarget.title },
+      { onSettled: () => setDeleteTarget(null) }
+    );
+  };
 
   return (
     <DashboardLayout>
@@ -152,18 +81,18 @@ const History = () => {
         <div className="flex flex-wrap gap-3 mb-6">
           <div className="relative flex-1 min-w-[200px]">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar por título o entidad..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+            <Input placeholder="Buscar por título o entidad..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
           <Select value={sectorFilter} onValueChange={setSectorFilter}>
             <SelectTrigger className="w-[200px]"><SelectValue placeholder="Todos los sectores" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los sectores</SelectItem>
-              {sectors.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {sectors.map((s) => <SelectItem key={s} value={s!}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
 
-        {loading ? (
+        {isLoading ? (
           <div className="flex items-center justify-center h-40"><Loader2 className="animate-spin text-primary" size={32} /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 bg-card border border-border rounded-xl">
@@ -174,7 +103,7 @@ const History = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {filtered.map(t => (
+            {filtered.map((t) => (
               <div key={t.id} className="bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-colors">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -192,53 +121,38 @@ const History = () => {
                     {t.contract_amount && (
                       <p className="font-semibold text-primary mr-2">{formatCurrency(Number(t.contract_amount))}</p>
                     )}
-
-                    {/* Informe de análisis */}
                     {t.status === "completed" && (
-                      <Link to={`/dashboard/report/${t.id}`} onClick={e => e.stopPropagation()}>
+                      <Link to={`/dashboard/report/${t.id}`} onClick={(e) => e.stopPropagation()}>
                         <Button variant="outline" size="sm" title="Ver informe de análisis">
                           <BarChart3 size={14} className="mr-1" />Informe
                         </Button>
                       </Link>
                     )}
-
-                    {/* Memoria técnica */}
-                    <Link to={`/dashboard/technical-memory?tenderId=${t.id}`} onClick={e => e.stopPropagation()}>
-                      <Button
-                        variant={hasMemory(t.id) ? "outline" : "secondary"}
-                        size="sm"
-                        title={hasMemory(t.id) ? "Ver / Regenerar memoria técnica" : "Generar memoria técnica"}
-                      >
+                    <Link to={`/dashboard/technical-memory?tenderId=${t.id}`} onClick={(e) => e.stopPropagation()}>
+                      <Button variant={memoriesMap[t.id] ? "outline" : "secondary"} size="sm">
                         <BookOpen size={14} className="mr-1" />
-                        {hasMemory(t.id) ? "Memoria" : "Generar Memoria"}
+                        {memoriesMap[t.id] ? "Memoria" : "Generar Memoria"}
                       </Button>
                     </Link>
-
-                    {canRetry(t.status) && (
+                    {(t.status === "pending" || t.status === "error") && (
                       <Button
-                        variant="outline"
-                        size="icon"
-                        title="Reintentar análisis"
-                        disabled={retrying === t.id}
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRetry(e, t.id); }}
+                        variant="outline" size="icon" title="Reintentar análisis"
+                        disabled={retryMutation.isPending && retryMutation.variables === t.id}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); retryMutation.mutate(t.id); }}
                       >
-                        {retrying === t.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                        {retryMutation.isPending && retryMutation.variables === t.id
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : <RotateCcw size={14} />}
                       </Button>
                     )}
-                    {/* Editar licitación */}
                     <Button
-                      variant="outline"
-                      size="icon"
-                      title="Editar datos y documentos"
+                      variant="outline" size="icon" title="Editar datos y documentos"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingTenderId(t.id); }}
                     >
                       <Pencil size={14} />
                     </Button>
-
                     <Button
-                      variant="outline"
-                      size="icon"
-                      title="Eliminar licitación"
+                      variant="outline" size="icon" title="Eliminar licitación"
                       className="text-destructive hover:bg-destructive/10"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteTarget({ id: t.id, title: t.title }); }}
                     >
@@ -261,9 +175,13 @@ const History = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deleting ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? <Loader2 size={14} className="animate-spin mr-2" /> : null}
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -274,7 +192,7 @@ const History = () => {
         tenderId={editingTenderId}
         open={!!editingTenderId}
         onOpenChange={(open) => { if (!open) setEditingTenderId(null); }}
-        onSaved={() => { setEditingTenderId(null); loadTenders(); }}
+        onSaved={() => { setEditingTenderId(null); refetch(); }}
       />
     </DashboardLayout>
   );
