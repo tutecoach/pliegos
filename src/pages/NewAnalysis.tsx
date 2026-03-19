@@ -153,7 +153,15 @@ const NewAnalysis = () => {
       if (error) throw error;
       setReportData(data.report_data);
       setStep("results");
-      toast({ title: "¡Análisis completado!" });
+      if (data.report_data?.modo_contingencia) {
+        toast({ 
+          title: "⚠️ Análisis en modo contingencia", 
+          description: "Se generó un informe preliminar porque los créditos de IA están agotados. Recargá créditos y re-analizá para obtener el informe completo.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "¡Análisis completado!" });
+      }
     } catch (err: any) {
       toast({ title: "Error en el análisis", description: err.message, variant: "destructive" });
       setStep("upload");

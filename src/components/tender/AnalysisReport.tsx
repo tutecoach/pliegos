@@ -80,6 +80,23 @@ const AnalysisReport = ({ data }: AnalysisReportProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Contingency mode warning */}
+      {data.modo_contingencia && (
+        <div className="rounded-xl border-2 border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/30 p-5 space-y-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={20} className="text-yellow-600 shrink-0" />
+            <h3 className="font-bold text-yellow-800 dark:text-yellow-400">Informe Preliminar — Modo Contingencia</h3>
+          </div>
+          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+            Este análisis se generó <strong>sin el motor IA completo</strong> debido a créditos insuficientes. 
+            Los scores IAT/IRE/PEA son estimaciones conservadoras y los datos contractuales provienen solo de metadatos, no del análisis profundo de documentos.
+          </p>
+          <p className="text-sm text-yellow-700 dark:text-yellow-300 font-medium">
+            📌 Recomendación: Recargá créditos de IA y usá el botón "Re-analizar" para obtener el informe estratégico completo.
+          </p>
+        </div>
+      )}
+
       {/* Scoring Dashboard */}
       {scoring.iat !== undefined && (
         <div>
