@@ -179,7 +179,7 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
       if (error) throw error;
 
       toast({ title: "¡Re-análisis completado!", description: "El informe se ha actualizado con los nuevos documentos." });
-      onSaved();
+      // Note: if modo_contingencia, user will see the warning banner in the report view
     } catch (err: any) {
       toast({ title: "Error en el re-análisis", description: err.message, variant: "destructive" });
     } finally {
