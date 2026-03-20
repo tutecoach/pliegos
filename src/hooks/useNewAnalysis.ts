@@ -83,8 +83,16 @@ export function useNewAnalysis() {
   }, [user]);
 
   const handleCompanySwitch = async (newCompanyId: string) => {
-    setCompanyId(newCompanyId);
-    await loadProjectsForCompany(newCompanyId);
+    try {
+      if (user) {
+        await supabase.from("profiles").update({ company_id: newCompanyId }).eq("user_id", user.id);
+      }
+      setCompanyId(newCompanyId);
+      await loadProjectsForCompany(newCompanyId);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error al cambiar empresa";
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    }
   };
 
   /**
