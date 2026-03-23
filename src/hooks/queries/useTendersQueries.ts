@@ -2,18 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { queryKeys } from "./query-keys";
+import type { TenderListItem } from "@/types/tender";
 
-// Tipo local para licitación en lista
-export interface TenderListItem {
-  id: string;
-  title: string;
-  contracting_entity: string | null;
-  contract_amount: number | null;
-  sector: string | null;
-  status: string;
-  created_at: string;
-  submission_deadline: string | null;
-}
+export type { TenderListItem };
 
 // ─── Fetchear licitaciones de una empresa ────────────────────────────────────
 

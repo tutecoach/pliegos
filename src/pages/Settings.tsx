@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage, type AppLanguage } from "@/contexts/LanguageContext";
 import { useCurrency, CURRENCY_OPTIONS, type CurrencyCode } from "@/contexts/CurrencyContext";
@@ -15,6 +15,9 @@ import UserManagement from "@/components/settings/UserManagement";
 import DemoRequestsManagement from "@/components/settings/DemoRequestsManagement";
 import { toast } from "@/hooks/use-toast";
 import { Settings as SettingsIcon, Loader2, Save } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useProfileQuery } from "@/hooks/queries/useCompanyQueries";
+import { queryKeys } from "@/hooks/queries/query-keys";
 
 const AI_MODELS = [
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Rápido)" },
@@ -23,56 +26,73 @@ const AI_MODELS = [
   { value: "gpt-5", label: "GPT-5 (Máxima calidad)" },
 ];
 
+// ─── Local preferences (no necesitan React Query, son valores en localStorage) ─
+
+function getLocalPref(key: string, fallback: string): string {
+  return localStorage.getItem(`pliego-smart-${key}`) ?? fallback;
+}
+
+function setLocalPref(key: string, value: string): void {
+  localStorage.setItem(`pliego-smart-${key}`, value);
+  toast({ title: "Preferencia guardada" });
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+/**
+ * Settings — Migrado a React Query.
+ *
+ * ANTES: useState + useEffect + supabase manual para perfil y admin check.
+ * AHORA: useProfileQuery + useQuery para admin check. Sin useEffect.
+ */
 const Settings = () => {
   const { user } = useAuth();
   const { language, setLanguage } = useLanguage();
   const { currency, setCurrency } = useCurrency();
-  const [reportFormat, setReportFormat] = useState("detailed");
-  const [autoSector, setAutoSector] = useState(true);
-  const [aiModel, setAiModel] = useState("gemini-2.5-flash");
-  const [profile, setProfile] = useState<any>(null);
-  const [fullName, setFullName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!user) return;
-    const load = async () => {
-      const { data } = await supabase.from("profiles").select("full_name, plan_tier, company_id").eq("user_id", user.id).single();
-      if (data) {
-        setProfile(data);
-        setFullName(data.full_name || "");
-      }
-      const { data: roleCheck } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
-      setIsAdmin(!!roleCheck);
-    };
-    load();
-    const savedFormat = localStorage.getItem("pliego-smart-report-format");
-    if (savedFormat) setReportFormat(savedFormat);
-    const savedAutoSector = localStorage.getItem("pliego-smart-auto-sector");
-    if (savedAutoSector !== null) setAutoSector(savedAutoSector === "true");
-    const savedAiModel = localStorage.getItem("pliego-smart-ai-model");
-    if (savedAiModel) setAiModel(savedAiModel);
-  }, [user]);
+  // React Query: perfil (reutilizamos el mismo hook que Dashboard)
+  const { data: profile } = useProfileQuery(user?.id);
 
-  const saveProfile = async () => {
-    if (!user) return;
-    setSaving(true);
-    const { error } = await supabase.from("profiles").update({ full_name: fullName }).eq("user_id", user.id);
-    setSaving(false);
-    if (error) {
-      toast({ title: "Error al guardar", description: error.message, variant: "destructive" });
-    } else {
+  // React Query: check admin role
+  const { data: isAdmin = false } = useQuery({
+    queryKey: ["is-admin", user?.id ?? ""],
+    queryFn: async () => {
+      const { data } = await supabase.rpc("has_role", { _user_id: user!.id, _role: "admin" });
+      return !!data;
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Estado local para el nombre (editable)
+  const [fullName, setFullName] = useState(profile?.full_name || "");
+  // Sync nombre cuando el perfil carga (solo una vez)
+  if (profile?.full_name && fullName === "") {
+    setFullName(profile.full_name);
+  }
+
+  // Local preferences (sin servidor)
+  const [reportFormat, setReportFormat] = useState(() => getLocalPref("report-format", "detailed"));
+  const [autoSector, setAutoSector] = useState(() => getLocalPref("auto-sector", "true") === "true");
+  const [aiModel, setAiModel] = useState(() => getLocalPref("ai-model", "gemini-2.5-flash"));
+
+  // Mutation: guardar perfil
+  const saveProfileMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("profiles").update({ full_name: fullName }).eq("user_id", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile(user?.id ?? "") });
       toast({ title: "Perfil actualizado" });
-    }
-  };
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error al guardar", description: err.message, variant: "destructive" });
+    },
+  });
 
-  const savePreference = (key: string, value: string) => {
-    localStorage.setItem(`pliego-smart-${key}`, value);
-    toast({ title: "Preferencia guardada" });
-  };
-
-  const planLabel = (tier: string) => {
+  const planLabel = (tier: string | null) => {
     switch (tier) {
       case "professional": return "Professional";
       case "enterprise": return "Enterprise";
@@ -108,11 +128,11 @@ const Settings = () => {
                   <Label>Plan actual</Label>
                   <p className="text-sm text-muted-foreground mt-0.5">Tu nivel de suscripción</p>
                 </div>
-                <Badge variant="secondary" className="text-sm">{planLabel(profile?.plan_tier)}</Badge>
+                <Badge variant="secondary" className="text-sm">{planLabel(profile?.plan_tier ?? null)}</Badge>
               </div>
               <div className="flex justify-end">
-                <Button onClick={saveProfile} disabled={saving} size="sm">
-                  {saving ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
+                <Button onClick={() => saveProfileMutation.mutate()} disabled={saveProfileMutation.isPending} size="sm">
+                  {saveProfileMutation.isPending ? <Loader2 size={14} className="animate-spin mr-1" /> : <Save size={14} className="mr-1" />}
                   Guardar perfil
                 </Button>
               </div>
@@ -162,7 +182,7 @@ const Settings = () => {
                   <Label>Formato de Informes</Label>
                   <p className="text-sm text-muted-foreground">Nivel de detalle en los informes generados</p>
                 </div>
-                <Select value={reportFormat} onValueChange={(v) => { setReportFormat(v); savePreference("report-format", v); }}>
+                <Select value={reportFormat} onValueChange={(v) => { setReportFormat(v); setLocalPref("report-format", v); }}>
                   <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="summary">Resumen</SelectItem>
@@ -177,7 +197,7 @@ const Settings = () => {
                   <Label>Detección automática de sector</Label>
                   <p className="text-sm text-muted-foreground">La IA detecta el sector del pliego automáticamente</p>
                 </div>
-                <Switch checked={autoSector} onCheckedChange={(v) => { setAutoSector(v); savePreference("auto-sector", String(v)); }} />
+                <Switch checked={autoSector} onCheckedChange={(v) => { setAutoSector(v); setLocalPref("auto-sector", String(v)); }} />
               </div>
             </CardContent>
           </Card>
@@ -194,7 +214,7 @@ const Settings = () => {
                   <Label>Modelo preferido</Label>
                   <p className="text-sm text-muted-foreground">Modelos más potentes pueden tardar más</p>
                 </div>
-                <Select value={aiModel} onValueChange={(v) => { setAiModel(v); savePreference("ai-model", v); }}>
+                <Select value={aiModel} onValueChange={(v) => { setAiModel(v); setLocalPref("ai-model", v); }}>
                   <SelectTrigger className="w-[240px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {AI_MODELS.map(m => (
@@ -205,7 +225,8 @@ const Settings = () => {
               </div>
             </CardContent>
           </Card>
-          {/* User Management - only for admins */}
+
+          {/* Admin panels */}
           {isAdmin && <UserManagement />}
           {isAdmin && <DemoRequestsManagement />}
         </div>

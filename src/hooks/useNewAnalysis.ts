@@ -147,27 +147,68 @@ export function useNewAnalysis() {
       setStartingAnalysis(false);
       return;
     }
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke("analyze-tender", { body: { reportId: (report as { id: string }).id } });
-      if (fnError) throw fnError;
-      setReportData((data as { report_data: unknown }).report_data);
-      setStep("results");
-      if ((data as { report_data: Record<string, unknown> }).report_data?.modo_contingencia) {
-        toast({
-          title: "⚠️ Análisis en modo contingencia",
-          description: "Se generó un informe preliminar porque los créditos de IA están agotados.",
-          variant: "destructive",
-        });
-      } else {
-        toast({ title: "¡Análisis completado!" });
+    const reportId = (report as { id: string }).id;
+
+    // Polling variable to stop if results arrive via invoke
+    let finished = false;
+
+    // 1. Invocación de la función (puede tardar y dar timeout en el cliente)
+    supabase.functions.invoke("analyze-tender", { body: { reportId } })
+      .then(({ data, error: fnError }) => {
+        if (finished) return;
+        if (fnError) throw fnError;
+        if (data?.report_data) {
+          finished = true;
+          setReportData(data.report_data);
+          setStep("results");
+        }
+      })
+      .catch((err: unknown) => {
+        console.error("Error en invoke (posible timeout), el polling continuará:", err);
+      });
+
+    // 2. Polling de respaldo (cada 5 seg) para detectar cuando el motor termine en DB
+    const pollInterval = setInterval(async () => {
+      if (finished) {
+        clearInterval(pollInterval);
+        return;
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error inesperado";
-      toast({ title: "Error en el análisis", description: msg, variant: "destructive" });
-      setStep("upload");
-    } finally {
-      setStartingAnalysis(false);
-    }
+
+      const { data: currentReport } = await supabase
+        .from("analysis_reports")
+        .select("status, report_data")
+        .eq("id", reportId)
+        .single();
+
+      if (currentReport?.status === "completed" && currentReport.report_data) {
+        finished = true;
+        clearInterval(pollInterval);
+        setReportData(currentReport.report_data);
+        setStep("results");
+        setStartingAnalysis(false);
+      } else if (currentReport?.status === "error") {
+        finished = true;
+        clearInterval(pollInterval);
+        setStep("upload");
+        setStartingAnalysis(false);
+        const msg = (currentReport.report_data as any)?.error || "El motor de IA devolvió un error.";
+        toast({ title: "Error en el análisis", description: msg, variant: "destructive" });
+      }
+    }, 5000);
+
+    // 3. Timeout de seguridad tras 5 minutos
+    setTimeout(() => {
+      if (!finished) {
+        clearInterval(pollInterval);
+        setStartingAnalysis(false);
+        // No cambiamos el step a 'upload' automáticamente para que el usuario vea el aviso
+        toast({
+          title: "Análisis prolongado",
+          description: "El análisis sigue procesándose en segundo plano. Puedes revisarlo en el Historial en unos minutos.",
+          variant: "default",
+        });
+      }
+    }, 300000);
   };
 
   return {
