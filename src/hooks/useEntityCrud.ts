@@ -32,9 +32,9 @@ export function useEntityCrud<TName extends keyof PublicTables>(
     if (!companyId) return;
 
     // Forzamos el tipado del insert para que acepte company_id
-    const payload = { 
-      company_id: companyId, 
-      ...defaultData 
+    const payload = {
+      company_id: companyId,
+      ...defaultData
     } as unknown as Insert;
 
     const { data, error } = await supabase
@@ -44,10 +44,10 @@ export function useEntityCrud<TName extends keyof PublicTables>(
       .single();
 
     if (error) {
-      toast({ 
-        title: "Error al añadir", 
-        description: error.message, 
-        variant: "destructive" 
+      toast({
+        title: "Error al añadir",
+        description: error.message,
+        variant: "destructive"
       });
       return;
     }
@@ -66,8 +66,8 @@ export function useEntityCrud<TName extends keyof PublicTables>(
 
   /** Persiste un item en Supabase */
   const save = async (
-    id: string, 
-    fields: Update, 
+    id: string,
+    fields: Update,
     successMsg = "Guardado correctamente"
   ) => {
     const { error } = await supabase
@@ -76,10 +76,10 @@ export function useEntityCrud<TName extends keyof PublicTables>(
       .eq("id" as any, id);
 
     if (error) {
-      toast({ 
-        title: "Error al guardar", 
-        description: error.message, 
-        variant: "destructive" 
+      toast({
+        title: "Error al guardar",
+        description: error.message,
+        variant: "destructive"
       });
       return false;
     }
@@ -96,10 +96,10 @@ export function useEntityCrud<TName extends keyof PublicTables>(
       .eq("id" as any, id);
 
     if (error) {
-      toast({ 
-        title: "Error al eliminar", 
-        description: error.message, 
-        variant: "destructive" 
+      toast({
+        title: "Error al eliminar",
+        description: error.message,
+        variant: "destructive"
       });
       return;
     }
