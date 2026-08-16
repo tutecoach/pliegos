@@ -1,6 +1,14 @@
-# Pliego Smart AI
+# Pliego Smart AI ⚡🏛️
 
-Pliego Smart AI es una plataforma SaaS premium e inteligente diseñada para optimizar y automatizar el análisis de pliegos de contratación pública (licitaciones) y la preparación de ofertas para empresas licitadoras. Mediante el uso de inteligencia artificial, la plataforma compara los requisitos de los pliegos con el perfil y capacidades de la empresa, calcula la viabilidad del contrato y genera la documentación técnica necesaria.
+[![Live Demo](https://img.shields.io/badge/Demo-Live%20Platform-success?style=for-the-badge&logo=vercel)](https://pliegos.vercel.app)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Next.js/React](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![OpenAI](https://img.shields.io/badge/OpenAI%20API-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
+[![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+
+**Plataforma SaaS con Inteligencia Artificial para Análisis de Licitaciones Públicas y Scoring de Viabilidad.**
+
+[🔗 Acceder a la Demo en Vivo](https://pliegos.vercel.app) · [💼 Conectar en LinkedIn](https://www.linkedin.com/in/matias-hugo-ariel-hernandez-0520377/)
 
 ---
 
@@ -126,8 +134,8 @@ erDiagram
 
 1. **Clonar el repositorio**:
    ```sh
-   git clone <url-del-repositorio>
-   cd pliego-smart-ai
+   git clone https://github.com/tutecoach/pliegos.git
+   cd pliegos
    ```
 
 2. **Instalar dependencias**:
