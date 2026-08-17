@@ -73,7 +73,7 @@ export function useEntityCrud<TName extends keyof PublicTables>(
     const { error } = await supabase
       .from(table)
       .update(fields)
-      .eq("id" as any, id);
+      .eq("id" as never, id);
 
     if (error) {
       toast({
@@ -93,7 +93,7 @@ export function useEntityCrud<TName extends keyof PublicTables>(
     const { error } = await supabase
       .from(table)
       .delete()
-      .eq("id" as any, id);
+      .eq("id" as never, id);
 
     if (error) {
       toast({
@@ -103,7 +103,7 @@ export function useEntityCrud<TName extends keyof PublicTables>(
       });
       return;
     }
-    setItems((prev) => prev.filter((item: any) => item.id !== id));
+    setItems((prev) => prev.filter((item) => (item as unknown as { id: string }).id !== id));
   };
 
   return { items, setAll, add, updateField, save, remove };

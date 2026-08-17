@@ -78,8 +78,8 @@ const RequestDemo = () => {
     setLoading(true);
 
     const { error } = await supabase
-      .from("demo_requests" as any)
-      .insert([{ full_name: fullName, company_name: companyName, email, phone: phone || null, message: message || null }] as any);
+      .from("demo_requests")
+      .insert([{ full_name: fullName, company_name: companyName, email, phone: phone || null, message: message || null }]);
 
     setLoading(false);
     if (error) {

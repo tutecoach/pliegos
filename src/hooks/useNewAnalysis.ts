@@ -191,7 +191,7 @@ export function useNewAnalysis() {
         clearInterval(pollInterval);
         setStep("upload");
         setStartingAnalysis(false);
-        const msg = (currentReport.report_data as any)?.error || "El motor de IA devolvió un error.";
+        const msg = (currentReport.report_data as Record<string, unknown>)?.error as string || "El motor de IA devolvió un error.";
         toast({ title: "Error en el análisis", description: msg, variant: "destructive" });
       }
     }, 5000);

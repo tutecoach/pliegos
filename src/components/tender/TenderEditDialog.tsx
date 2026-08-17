@@ -135,8 +135,8 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
       await supabase.from("tender_documents").delete().eq("id", docId);
       setExistingDocs(prev => prev.filter(d => d.id !== docId));
       toast({ title: `"${fileName}" eliminado` });
-    } catch (err: any) {
-      toast({ title: "Error al eliminar documento", description: err.message, variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error al eliminar documento", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
       setDeletingDoc(null);
     }
@@ -161,7 +161,7 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
       let reportId: string;
       if (existing && existing.length > 0) {
         reportId = existing[0].id;
-        await supabase.from("analysis_reports").update({ status: "processing", report_data: null } as any).eq("id", reportId);
+        await supabase.from("analysis_reports").update({ status: "processing", report_data: null } as never).eq("id", reportId);
       } else {
         const { data: newReport, error } = await supabase.from("analysis_reports").insert({
           tender_id: tenderId,
@@ -180,8 +180,8 @@ const TenderEditDialog = ({ tenderId, open, onOpenChange, onSaved }: TenderEditD
 
       toast({ title: "¡Re-análisis completado!", description: "El informe se ha actualizado con los nuevos documentos." });
       // Note: if modo_contingencia, user will see the warning banner in the report view
-    } catch (err: any) {
-      toast({ title: "Error en el re-análisis", description: err.message, variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error en el re-análisis", description: err instanceof Error ? err.message : String(err), variant: "destructive" });
     } finally {
       setReanalyzing(false);
     }

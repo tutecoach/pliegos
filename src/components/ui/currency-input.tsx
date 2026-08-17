@@ -49,7 +49,7 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const raw = e.target.value.replace(/[^0-9.,\-]/g, "").replace(",", ".");
+      const raw = e.target.value.replace(/[^0-9.,-]/g, "").replace(",", ".");
       onChange(raw);
     };
 
